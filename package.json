@@ -9,6 +9,8 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "ai": "latest",
+    "@ai-sdk/openai": "latest",
     "lightweight-charts": "^4.2.1",
     "@hookform/resolvers": "^3.9.1",
     "@vercel/analytics": "1.6.1",
