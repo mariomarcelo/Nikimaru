@@ -9,7 +9,7 @@ export async function POST(req: Request) {
   const result = await streamText({
     model: openai('gpt-4o'),
     messages,
-    system: `Eres Nikimaru, experto en trading institucional. Ayuda a Marius.`,
+    system: `Eres Nikimaru, experto en Wyckoff y SMC. Responde de forma técnica y breve a Marius.`,
   });
 
   return result.toDataStreamResponse();

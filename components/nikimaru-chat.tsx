@@ -1,27 +1,40 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useChat } from 'ai/react';
+import { Send, Terminal } from 'lucide-react';
 
 export function NikimaruChat() {
-  const [input, setInput] = useState('');
+  // Aquí es donde ocurre la magia del envío
+  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
+    api: '/api/chat',
+  });
 
   return (
-    <div style={{ padding: '10px', backgroundColor: '#1a1a1a', border: '1px solid #d4af37', borderRadius: '8px', color: 'white', fontFamily: 'monospace' }}>
-      <div style={{ fontSize: '12px', marginBottom: '10px', color: '#d4af37' }}>
-        [NIKIMARU CORE v1.0]
+    <div className="flex flex-col h-[350px] bg-black/60 border border-gold/20 rounded-lg font-mono">
+      <div className="bg-gold/10 p-2 border-b border-gold/20 text-[10px] text-gold flex items-center gap-2">
+        <Terminal className="w-3 h-3" /> [NIKIMARU ONLINE]
       </div>
-      <div style={{ height: '150px', overflowY: 'auto', fontSize: '11px', borderBottom: '1px solid #333', marginBottom: '10px' }}>
-        Esperando conexión real...
+
+      <div className="flex-1 overflow-y-auto p-3 space-y-3 text-[11px] text-white">
+        {messages.length === 0 && <div className="text-gray-500 italic">CONEXIÓN ESTABLECIDA...</div>}
+        {messages.map((m) => (
+          <div key={m.id} className={m.role === 'user' ? 'text-gold/80' : 'text-green-400'}>
+            <span className="opacity-40">[{m.role === 'user' ? 'MARIUS' : 'NIKIMARU'}]</span> {m.content}
+          </div>
+        ))}
       </div>
-      <div style={{ display: 'flex', gap: '5px' }}>
+
+      <form onSubmit={handleSubmit} className="p-2 border-t border-gold/20 flex gap-2">
         <input
           value={input}
-          onChange={(e) => setInput(e.target.value)}
-          style={{ flex: 1, background: 'transparent', border: 'none', color: 'white', outline: 'none', fontSize: '11px' }}
-          placeholder="Escribe aquí..."
+          onChange={handleInputChange}
+          placeholder="Escribir orden..."
+          className="flex-1 bg-transparent text-white text-[11px] outline-none"
         />
-        <button style={{ color: '#d4af37', background: 'none', border: 'none', cursor: 'pointer' }}>➔</button>
-      </div>
+        <button type="submit" disabled={isLoading} className="text-gold hover:scale-110 transition-transform">
+          <Send className="w-4 h-4" />
+        </button>
+      </form>
     </div>
   );
 }
