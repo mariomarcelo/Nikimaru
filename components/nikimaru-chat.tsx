@@ -6,7 +6,7 @@ import {
   Sparkles,
   Send
 } from 'lucide-react';
-import { useChat } from 'ai/react';
+import { useChat } from '@ai-sdk/react';
 import { Input } from '@/components/ui/input';
 
 // Definimos los Props para que coincidan con lo que envía page.tsx
@@ -83,8 +83,8 @@ export function NikimaruChat({
           >
             <div
               className={`max-w-[90%] rounded-lg p-3 text-xs leading-relaxed font-mono ${m.role === 'user'
-                  ? 'bg-yellow-500/10 border border-yellow-500/20 text-yellow-200'
-                  : 'bg-zinc-900 border border-zinc-800 text-zinc-100'
+                ? 'bg-yellow-500/10 border border-yellow-500/20 text-yellow-200'
+                : 'bg-zinc-900 border border-zinc-800 text-zinc-100'
                 }`}
             >
               <div className="text-[9px] uppercase opacity-40 mb-1 font-black">

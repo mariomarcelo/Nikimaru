@@ -1,12 +1,17 @@
-import { createOpenAI } from '@ai-sdk/openai';
+import { openai } from '@ai-sdk/openai';
 import { streamText } from 'ai';
 
-export const runtime = 'edge';
+export async function POST(req: Request) {
+  // ... tu lógica de systemPrompt
 
-// Usamos una constante para el cliente
-const sdkOpenAI = createOpenAI({
-  apiKey: process.env.OPENAI_API_KEY ?? '',
-});
+  const result = await streamText({
+    model: openai('gpt-4o'),
+    messages,
+    system: systemPrompt,
+  });
+
+  return result.toDataStreamResponse();
+}
 
 export async function POST(req: Request) {
   try {
