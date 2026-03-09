@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { TradingChart } from '@/components/trading-chart';
-import { NikimaruChat } from '@/components/nikimaru-chat';
+import { TradingChart } from '../components/trading-chart';
+import { NikimaruChat } from '../components/nikimaru-chat';
 import { Zap } from 'lucide-react';
 
 export default function NikimaruTerminal() {
@@ -22,7 +22,6 @@ export default function NikimaruTerminal() {
         <div className="flex-[2] relative border-r border-[#d4af37]/10 bg-black">
           <TradingChart onPriceUpdate={(p) => setPrice(p)} />
         </div>
-
         <div className="flex-1 min-w-[320px] p-2 bg-[#0a0a0a]">
           <NikimaruChat />
         </div>
