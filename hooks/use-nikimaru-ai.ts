@@ -1,41 +1,47 @@
-import { useState, useEffect, useRef } from 'react';
-import { TimeFrame, CandleDirection } from '@/lib/types';
+'use client';
 
-export function useNikimaruAI({
-  currentPrice,
-  isHuellaActive,
-  timeframe,
-  candleDirection
-}: {
+import { useState, useEffect } from 'react';
+import type { TimeFrame, CandleDirection } from '@/lib/types';
+
+interface UseNikimaruAIProps {
   currentPrice: number;
   isHuellaActive: boolean;
   timeframe: TimeFrame;
   candleDirection: CandleDirection;
-}) {
+}
+
+export function useNikimaruAI({ currentPrice, isHuellaActive, timeframe, candleDirection }: UseNikimaruAIProps) {
   const [advice, setAdvice] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
+    // Solo disparamos la IA si hay un precio real y huella activa
     if (isHuellaActive && currentPrice > 0) {
-      // Solo dispara la IA si hay huella real
-      const getAnalysis = async () => {
+      const fetchAnalysis = async () => {
         setIsLoading(true);
         try {
-          const res = await fetch('/api/chat', {
+          const response = await fetch('/api/chat', {
             method: 'POST',
-            body: JSON.stringify({ price: currentPrice, huella: isHuellaActive, tf: timeframe, direction: candleDirection })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              price: currentPrice,
+              huella: isHuellaActive,
+              tf: timeframe,
+              direction: candleDirection
+            }),
           });
-          const data = await res.json();
+          const data = await response.json();
           setAdvice(data.text);
-        } catch (e) {
-          console.error(e);
+        } catch (error) {
+          console.error("Error en Nikimaru AI:", error);
         } finally {
           setIsLoading(false);
         }
       };
-      getAnalysis();
+
+      fetchAnalysis();
     }
-  }, [isHuellaActive]);
+  }, [isHuellaActive, timeframe]); // Se dispara cuando cambia la huella o el timeframe
 
   return { advice, isLoading };
 }
