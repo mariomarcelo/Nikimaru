@@ -1,268 +1,100 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
-import { Zap, Clock } from 'lucide-react';
-import { TradingChart } from '@/components/trading-chart';
-import { OperationsConsole } from '@/components/operations-console';
-import { NikimaruChat } from '@/components/nikimaru-chat';
-import type { TimeFrame, Position, CandleDirection } from '@/lib/types';
+import { useState } from 'react';
+import { Bot, Zap, Activity, TrendingUp, TrendingDown, Shield, Target } from 'lucide-react';
 
-const TIMEFRAMES: { value: TimeFrame; label: string }[] = [
-  { value: '1h', label: '1H' },
-  { value: '15m', label: '15M' },
-  { value: '1m', label: '1M' },
-];
-
-export default function NikimaruApp() {
-  const [activeTimeframe, setActiveTimeframe] = useState<TimeFrame>('1m');
-  const [currentPrice, setCurrentPrice] = useState<number>(0);
-  const [isHuellaActive, setIsHuellaActive] = useState(false);
-  const [position, setPosition] = useState<Position | null>(null);
-  
-  // Track HUELLA status per timeframe for multi-timeframe analysis
-  const [huella1H, setHuella1H] = useState(false);
-  const [huella1M, setHuella1M] = useState(false);
-  
-  // Track candle direction for directional illumination
-  const [candleDirection, setCandleDirection] = useState<CandleDirection>('NEUTRAL');
-  
-  // Flash message state
-  const [showFlashMessage, setShowFlashMessage] = useState(false);
-  const [lastFlashDirection, setLastFlashDirection] = useState<CandleDirection | null>(null);
-  
-  // RAYO DORADO: Definitive signal when 1M HUELLA is active
-  // Major trend confirmation comes from 1H EMA
-  const isRayoDorado = huella1M && activeTimeframe === '1m';
-
-  // Handle price updates from chart
-  const handlePriceUpdate = useCallback((price: number) => {
-    setCurrentPrice(price);
-  }, []);
-
-  // Handle HUELLA status changes per timeframe
-  const handleHuellaChange = useCallback((active: boolean, tf: TimeFrame) => {
-    setIsHuellaActive(active);
-    if (tf === '1h') {
-      setHuella1H(active);
-    } else if (tf === '1m') {
-      setHuella1M(active);
-    }
-  }, []);
-
-  // Handle candle direction changes
-  const handleDirectionChange = useCallback((direction: CandleDirection, tf: TimeFrame) => {
-    if (tf === activeTimeframe) {
-      setCandleDirection(direction);
-    }
-  }, [activeTimeframe]);
-
-  // Handle position creation
-  const handleStartHunt = useCallback((newPosition: Position) => {
-    setPosition(newPosition);
-  }, []);
-
-  // Handle position close
-  const handleClosePosition = useCallback(() => {
-    setPosition(null);
-  }, []);
-
-  // Auto Break-Even logic
-  useEffect(() => {
-    if (!position || position.isBreakEven || currentPrice <= 0) return;
-
-    const entryPrice = position.entryPrice;
-    const stopLoss = position.stopLoss;
-    const takeProfit = position.takeProfit;
-
-    // Calculate 1:1 ratio price
-    const riskDistance = Math.abs(entryPrice - stopLoss);
-    let breakEvenTrigger: number;
-
-    if (position.side === 'LONG') {
-      breakEvenTrigger = entryPrice + riskDistance;
-      
-      if (currentPrice >= breakEvenTrigger) {
-        setPosition({
-          ...position,
-          stopLoss: entryPrice,
-          isBreakEven: true,
-        });
-      }
-    } else {
-      breakEvenTrigger = entryPrice - riskDistance;
-      
-      if (currentPrice <= breakEvenTrigger) {
-        setPosition({
-          ...position,
-          stopLoss: entryPrice,
-          isBreakEven: true,
-        });
-      }
-    }
-  }, [currentPrice, position]);
-
-  // Show flash message when RAYO DORADO activates with direction
-  useEffect(() => {
-    if (isRayoDorado && candleDirection !== 'NEUTRAL' && candleDirection !== lastFlashDirection) {
-      setShowFlashMessage(true);
-      setLastFlashDirection(candleDirection);
-      
-      // Auto-hide after 2 seconds
-      const timer = setTimeout(() => {
-        setShowFlashMessage(false);
-      }, 2000);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [isRayoDorado, candleDirection, lastFlashDirection]);
-
-  // Reset flash direction when RAYO DORADO deactivates
-  useEffect(() => {
-    if (!isRayoDorado) {
-      setLastFlashDirection(null);
-    }
-  }, [isRayoDorado]);
-
-  // Check if position hit SL or TP
-  useEffect(() => {
-    if (!position || currentPrice <= 0) return;
-
-    if (position.side === 'LONG') {
-      if (currentPrice <= position.stopLoss) {
-        alert(position.isBreakEven ? 'Break Even hit!' : 'Stop Loss hit!');
-        setPosition(null);
-      } else if (currentPrice >= position.takeProfit) {
-        alert('Take Profit hit! +$160 profit!');
-        setPosition(null);
-      }
-    } else {
-      if (currentPrice >= position.stopLoss) {
-        alert(position.isBreakEven ? 'Break Even hit!' : 'Stop Loss hit!');
-        setPosition(null);
-      } else if (currentPrice <= position.takeProfit) {
-        alert('Take Profit hit! +$160 profit!');
-        setPosition(null);
-      }
-    }
-  }, [currentPrice, position]);
+export default function NikimaruTerminal() {
+  const [leverage, setLeverage] = useState(10);
 
   return (
-    <div className="min-h-screen h-screen bg-background flex flex-col overflow-hidden">
-      {/* Header */}
-      <header className="flex items-center justify-between px-4 py-3 border-b border-border bg-card">
+    <div className="min-h-screen bg-black text-white p-4 font-sans">
+      {/* HEADER */}
+      <div className="flex justify-between items-center mb-6 border-b border-zinc-800 pb-4">
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Zap className="w-6 h-6 text-gold" />
-            <h1 className="text-lg font-bold text-foreground">NIKIMARU</h1>
+          <div className="bg-yellow-500 p-2 rounded-lg">
+            <Activity className="text-black w-6 h-6" />
           </div>
-          <span className="text-xs text-muted-foreground hidden sm:inline">
-            High-Frequency Trading Terminal
-          </span>
+          <div>
+            <h1 className="text-xl font-black tracking-tighter uppercase">Nikimaru Terminal</h1>
+            <p className="text-[10px] text-zinc-500 font-mono">BTC/USDT • REAL-TIME DATA</p>
+          </div>
         </div>
+        <div className="flex gap-6 items-center">
+          <div className="text-right">
+            <p className="text-[10px] text-zinc-500 uppercase">Balance</p>
+            <p className="text-lg font-mono font-bold text-green-500">$54,230.15</p>
+          </div>
+        </div>
+      </div>
 
-        {/* Timeframe Tabs - Large touch-friendly buttons */}
-        <div className="flex items-center gap-2 bg-secondary rounded-xl p-1.5">
-          {TIMEFRAMES.map((tf) => (
-            <button
-              key={tf.value}
-              onClick={() => setActiveTimeframe(tf.value)}
-              className={`min-w-[56px] px-4 py-3 text-sm font-bold rounded-lg transition-all touch-manipulation ${
-                activeTimeframe === tf.value
-                  ? 'bg-gold text-black shadow-lg shadow-gold/30'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary/80 active:scale-95'
-              }`}
-            >
-              {tf.label}
+      <div className="grid grid-cols-12 gap-6">
+        {/* PANEL LATERAL IZQUIERDO: TRADING OPTIONS */}
+        <div className="col-span-3 space-y-4">
+          <div className="bg-zinc-900/50 p-4 rounded-xl border border-zinc-800">
+            <h3 className="text-xs font-bold text-zinc-500 uppercase mb-4 tracking-widest">Leverage Control</h3>
+            <div className="grid grid-cols-2 gap-2">
+              {[10, 20, 50, 100, 125].map((lvl) => (
+                <button
+                  key={lvl}
+                  onClick={() => setLeverage(lvl)}
+                  className={`p-2 rounded font-mono text-sm border ${leverage === lvl
+                      ? 'bg-yellow-500 border-yellow-500 text-black'
+                      : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-zinc-500'
+                    }`}
+                >
+                  {lvl}x
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-zinc-900/50 p-4 rounded-xl border border-zinc-800 space-y-3">
+            <h3 className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Quick Actions</h3>
+            <button className="w-full bg-green-500/10 hover:bg-green-500/20 text-green-500 border border-green-500/20 p-3 rounded-lg flex items-center justify-between group transition-all">
+              <span className="font-bold uppercase text-xs">Market Long</span>
+              <TrendingUp className="w-4 h-4 group-hover:translate-y-[-2px] transition-transform" />
             </button>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Clock className="w-4 h-4" />
-          <span className="hidden sm:inline">March 7, 2026</span>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Panel - Chart and Controls */}
-        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-          {/* Chart Area */}
-          <div className="flex-1 relative min-h-[300px] lg:min-h-0">
-            {TIMEFRAMES.map((tf) => (
-              <div
-                key={tf.value}
-                className={`absolute inset-0 ${
-                  activeTimeframe === tf.value ? 'block' : 'hidden'
-                }`}
-              >
-                <TradingChart
-                  timeframe={tf.value}
-                  isActive={activeTimeframe === tf.value}
-                  position={position}
-                  onPriceUpdate={handlePriceUpdate}
-                  onHuellaChange={(active) => handleHuellaChange(active, tf.value)}
-                  onDirectionChange={(dir) => handleDirectionChange(dir, tf.value)}
-                  isRayoDorado={isRayoDorado && tf.value === '1m'}
-                  candleDirection={candleDirection}
-                />
-              </div>
-            ))}
+            <button className="w-full bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 p-3 rounded-lg flex items-center justify-between group transition-all">
+              <span className="font-bold uppercase text-xs">Market Short</span>
+              <TrendingDown className="w-4 h-4 group-hover:translate-y-[2px] transition-transform" />
+            </button>
           </div>
 
-          {/* Operations Console - Sidebar on desktop, bottom on mobile */}
-          <div className="lg:w-80 border-t lg:border-t-0 lg:border-l border-border overflow-y-auto">
-            <OperationsConsole
-              currentPrice={currentPrice}
-              isHuellaActive={isHuellaActive}
-              isRayoDorado={isRayoDorado}
-              onStartHunt={handleStartHunt}
-              onClosePosition={handleClosePosition}
-              position={position}
+          <div className="bg-zinc-900/50 p-4 rounded-xl border border-zinc-800">
+            <div className="flex items-center gap-2 text-yellow-500 mb-2">
+              <Shield className="w-4 h-4" />
+              <span className="text-[10px] font-bold uppercase">Risk Management</span>
+            </div>
+            <p className="text-[11px] text-zinc-500 leading-relaxed font-mono">
+              Auto-stop loss at -15% based on {leverage}x leverage.
+            </p>
+          </div>
+        </div>
+
+        {/* PANEL CENTRAL: GRÁFICO (Ahora tiene más espacio) */}
+        <div className="col-span-9">
+          <div className="bg-zinc-900/30 border border-zinc-800 rounded-2xl h-[600px] flex flex-col items-center justify-center relative overflow-hidden">
+            <div className="absolute top-4 left-4 flex items-center gap-4">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                <span className="text-xs font-mono text-zinc-400 font-bold uppercase">Live Chart</span>
+              </div>
+            </div>
+
+            {/* Aquí iría el embed de TradingView o tu canvas de gráfico */}
+            <div className="text-zinc-700 font-mono text-sm flex flex-col items-center gap-2">
+              <Target className="w-12 h-12 opacity-20 mb-2" />
+              <p>[ CHART CANVAS AREA ]</p>
+              <p className="text-[10px] opacity-50 uppercase tracking-[0.2em]">Waiting for data feed...</p>
+            </div>
+
+            {/* Decoración de rejilla para que no se vea vacío */}
+            <div className="absolute inset-0 opacity-10 pointer-events-none"
+              style={{ backgroundImage: 'linear-gradient(#333 1px, transparent 1px), linear-gradient(90deg, #333 1px, transparent 1px)', backgroundSize: '40px 40px' }}
             />
           </div>
         </div>
-
-        {/* Right Panel - AI Chat */}
-        <NikimaruChat
-          currentPrice={currentPrice}
-          isHuellaActive={isHuellaActive}
-          timeframe={activeTimeframe}
-        />
       </div>
-
-      {/* Floating Action Button for Mobile */}
-      <button
-        onClick={() => {
-          if (!position && currentPrice > 0) {
-            const stopLossPercent = 1;
-            const riskAmount = 80 - 0.80;
-            const stopLossDistance = currentPrice * (stopLossPercent / 100);
-            const lotSize = Math.floor((riskAmount / stopLossDistance) * 1000) / 1000;
-            const sl = currentPrice - stopLossDistance;
-            const tp = currentPrice + (stopLossDistance * 2);
-
-            handleStartHunt({
-              entryPrice: currentPrice,
-              stopLoss: sl,
-              takeProfit: tp,
-              quantity: lotSize,
-              side: 'LONG',
-              isBreakEven: false,
-            });
-          }
-        }}
-        disabled={!!position}
-        className={`fixed bottom-6 right-6 w-16 h-16 rounded-full flex items-center justify-center shadow-lg transition-all lg:hidden z-50 ${
-          isRayoDorado && !position
-            ? 'bg-gold animate-pulse-gold'
-            : isHuellaActive && !position
-            ? 'bg-gold/90'
-            : 'bg-gold/60'
-        } ${position ? 'opacity-50 cursor-not-allowed' : 'hover:scale-110 active:scale-95'}`}
-      >
-        <Zap className="w-6 h-6 text-black" />
-      </button>
     </div>
   );
 }
