@@ -60,7 +60,7 @@ export default function NikimaruCompactTerminal() {
     else setPositions(prev => prev.map(p => p.id === id ? { ...p, amount: p.amount * (1 - pct / 100) } : p));
   };
 
-  // --- LÓGICA DE BOT (CORREGIDA) ---
+  // --- LÓGICA DE BOT (REPARADA) ---
   const onMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
     dragStartPos.current = { x: e.clientX, y: e.clientY };
@@ -69,18 +69,32 @@ export default function NikimaruCompactTerminal() {
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
       if (!isDragging) return;
-      setBotPos({ x: window.innerWidth - e.clientX - 30, y: window.innerHeight - e.clientY - 30 });
+      // Invertimos la lógica para que se mueva respecto a la esquina inferior derecha
+      setBotPos({
+        x: window.innerWidth - e.clientX - 25,
+        y: window.innerHeight - e.clientY - 25
+      });
     };
+
     const onMouseUp = (e: MouseEvent) => {
       if (isDragging) {
-        const dist = Math.hypot(e.clientX - dragStartPos.current.x, e.clientY - dragStartPos.current.y);
-        // Si el mouse se movió menos de 5px, es un click, no un arrastre
-        if (dist < 5) setIsChatOpen(prev => !prev);
+        const dist = Math.hypot(
+          e.clientX - dragStartPos.current.x,
+          e.clientY - dragStartPos.current.y
+        );
+        // Si el movimiento es casi nulo (click), abrimos el chat
+        if (dist < 6) {
+          setIsChatOpen(prev => !prev);
+        }
         setIsDragging(false);
       }
     };
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
+
+    if (isDragging) {
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+    }
+
     return () => {
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
@@ -102,6 +116,7 @@ export default function NikimaruCompactTerminal() {
   return (
     <div className="min-h-screen bg-[#0b0e11] text-[#eaecef] font-sans flex flex-col overflow-hidden relative select-none">
 
+      {/* HEADER */}
       {!isFullScreen && (
         <div className="h-12 border-b border-[#2b2f36] flex items-center px-4 bg-[#161a1e] justify-between z-50 shadow-md">
           <div className="flex items-center gap-2 text-[#f0b90b] font-black italic uppercase tracking-tighter">
@@ -121,6 +136,7 @@ export default function NikimaruCompactTerminal() {
       )}
 
       <div className="flex flex-1 overflow-hidden relative">
+        {/* ORDERBOOK */}
         {!isFullScreen && (
           <div className="w-[160px] border-r border-[#2b2f36] flex flex-col bg-[#161a1e] font-mono text-[9px] z-20">
             <div className="flex-1 flex flex-col justify-end">
@@ -133,6 +149,7 @@ export default function NikimaruCompactTerminal() {
           </div>
         )}
 
+        {/* CHART & POSITIONS */}
         <div className="flex-1 flex flex-col bg-black relative">
           <div id="tv_chart" ref={container} className="flex-1 w-full" />
           {!isFullScreen && (
@@ -155,16 +172,12 @@ export default function NikimaruCompactTerminal() {
           )}
         </div>
 
+        {/* TRADE PANEL */}
         {!isFullScreen && (
           <div className="w-[240px] border-l border-[#2b2f36] bg-[#161a1e] p-3 flex flex-col gap-2 z-40 overflow-y-auto">
             <div className="bg-[#2b3139] p-2 rounded-xl border border-zinc-700">
               <div className="flex justify-between text-[8px] font-black text-zinc-500 uppercase mb-1"><span>Monto USDT</span><Wallet size={10} /></div>
               <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full bg-transparent text-right text-lg font-mono text-white outline-none" />
-              <div className="flex justify-between gap-1 mt-1">
-                {[25, 50, 75, 100].map(p => (
-                  <button key={p} className="flex-1 bg-black/20 hover:bg-[#f0b90b] hover:text-black text-[8px] py-1 rounded transition-all font-bold text-zinc-400">{p}%</button>
-                ))}
-              </div>
             </div>
 
             <div className="bg-black/20 p-2 rounded-xl border border-zinc-800">
@@ -183,24 +196,24 @@ export default function NikimaruCompactTerminal() {
             </div>
 
             <div className="grid grid-cols-2 gap-2 mt-2">
-              <button onClick={() => handleTrade('LONG')} className="bg-[#02c076] hover:bg-[#02d887] py-3 rounded-lg font-black uppercase text-[10px] shadow-lg active:scale-95 transition-all text-white">Buy / Long</button>
-              <button onClick={() => handleTrade('SHORT')} className="bg-[#f84960] hover:bg-[#ff5d73] py-3 rounded-lg font-black uppercase text-[10px] shadow-lg active:scale-95 transition-all text-white">Sell / Short</button>
+              <button onClick={() => handleTrade('LONG')} className="bg-[#02c076] hover:bg-[#02d887] py-3 rounded-lg font-black uppercase text-[10px] shadow-lg active:scale-95 transition-all text-white font-bold">Buy / Long</button>
+              <button onClick={() => handleTrade('SHORT')} className="bg-[#f84960] hover:bg-[#ff5d73] py-3 rounded-lg font-black uppercase text-[10px] shadow-lg active:scale-95 transition-all text-white font-bold">Sell / Short</button>
             </div>
           </div>
         )}
 
-        {/* --- NIKIMARU BOT & CHAT REPARADO --- */}
+        {/* --- NIKIMARU BOT & CHAT RE-SINCRONIZADO --- */}
         <div style={{ bottom: `${botPos.y}px`, right: `${botPos.x}px` }} className="fixed z-[500] flex flex-col items-end pointer-events-none">
           {isChatOpen && (
             <div className="w-72 h-80 bg-[#161a1e] border border-[#f0b90b]/30 rounded-3xl shadow-2xl flex flex-col overflow-hidden mb-4 pointer-events-auto animate-in slide-in-from-bottom-4 backdrop-blur-md">
               <div className="p-3 bg-[#f0b90b] text-black flex justify-between items-center font-black text-[10px] uppercase">
                 <span className="flex items-center gap-2"><Bot size={14} /> Nikimaru Intelligence</span>
-                <button onClick={() => setIsChatOpen(false)} className="hover:rotate-90 transition-transform"><X size={14} /></button>
+                <button onClick={(e) => { e.stopPropagation(); setIsChatOpen(false); }} className="hover:rotate-90 transition-transform p-1"><X size={14} /></button>
               </div>
 
               <div className="flex-1 p-4 overflow-y-auto text-[11px] space-y-3 bg-[#0b0e11]/60">
                 <div className="bg-[#2b3139] p-3 rounded-2xl rounded-tl-none text-white leading-tight border border-white/5 italic">
-                  "El mercado está volátil, jefe. He cargado el panel compacto para que tengas máxima visibilidad. ¿Ejecutamos?"
+                  "Sistemas listos. ROE% activo y panel de control sincronizado. ¿Qué órdenes ejecutamos hoy?"
                 </div>
               </div>
 
@@ -224,7 +237,7 @@ export default function NikimaruCompactTerminal() {
 
           <div
             onMouseDown={onMouseDown}
-            className="pointer-events-auto p-4 bg-[#f0b90b] rounded-full shadow-2xl cursor-grab active:cursor-grabbing hover:scale-110 transition-all shadow-[#f0b90b]/20 border border-white/10"
+            className={`pointer-events-auto p-4 bg-[#f0b90b] rounded-full shadow-2xl transition-all shadow-[#f0b90b]/20 border border-white/10 ${isDragging ? 'cursor-grabbing scale-95' : 'cursor-pointer hover:scale-110'}`}
           >
             <Bot size={28} className="text-black" />
           </div>
