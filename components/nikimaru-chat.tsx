@@ -1,17 +1,9 @@
 'use client';
 
-import { useRef, useEffect } from 'react';
-import {
-  Terminal,
-  Sparkles,
-  Send,
-  ChevronRight,
-  ChevronLeft
-} from 'lucide-react';
-// CORRECCIÓN: Usamos la nueva ruta de la SDK de Vercel para evitar el error "Module not found"
-import { useChat } from '@ai-sdk/react';
+import { useState, useRef, useEffect } from 'react';
+import { Send, ChevronLeft, Terminal, Sparkles } from 'lucide-react';
 import { Input } from '@/components/ui/input';
-import type { TimeFrame, CandleDirection } from '@/lib/types';
+import type { ChartMessage, TimeFrame, CandleDirection, Position } from '@/lib/types';
 
 interface NikimaruChatProps {
   currentPrice: number;
@@ -19,6 +11,7 @@ interface NikimaruChatProps {
   timeframe: TimeFrame;
   isRayoDorado: boolean;
   candleDirection: CandleDirection;
+  position: Position | null;
 }
 
 export function NikimaruChat({
@@ -26,98 +19,108 @@ export function NikimaruChat({
   isHuellaActive,
   timeframe,
   isRayoDorado,
-  candleDirection
+  candleDirection,
+  position
 }: NikimaruChatProps) {
-  // Configuración del Chat con el backend real
-  const { messages, input, handleInputChange, handleSubmit, isLoading } = useChat({
-    api: '/api/chat',
-    body: {
-      currentMarketData: {
-        precio: currentPrice,
-        huellaActiva: isHuellaActive,
-        rayoDorado: isRayoDorado,
-        direccion: candleDirection,
-        temporalidad: timeframe,
-      }
-    }
-  });
-
+  const [isOpen, setIsOpen] = useState(false);
+  const [messages, setMessages] = useState<ChartMessage[]>([
+    {
+      role: 'assistant',
+      content: `[TERMINAL NIKIMARU] Sistema listo. BTC/USDT en ${timeframe}. Esperando rastro de Smart Money...`,
+    },
+  ]);
+  const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
-
   useEffect(() => {
-    scrollToBottom();
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim()) return;
+
+    const userMsg: ChartMessage = { role: 'user', content: input };
+    setMessages(prev => [...prev, userMsg]);
+    setInput('');
+
+    // Respuesta rápida del Mentor
+    setTimeout(() => {
+      let response = `[ANALISIS] BTC @ $${currentPrice.toLocaleString()}. `;
+      if (isRayoDorado) {
+        response += `⚡ RAYO DORADO DETECTADO: Confirmación ${candleDirection}. Es momento de ejecutar la caza.`;
+      } else if (isHuellaActive) {
+        response += `🐋 HUELLA ACTIVA: Hay volumen institucional, pero aún falta el Rayo para confirmar dirección.`;
+      } else {
+        response += `Mercado en rango. Sin huella clara de ballenas. Paciencia.`;
+      }
+      setMessages(prev => [...prev, { role: 'assistant', content: response }]);
+    }, 500);
+  };
+
   return (
-    <div className="flex flex-col h-full w-80 bg-black border-l border-zinc-800 transition-transform duration-300">
-      {/* Header del Chat */}
-      <div className="flex items-center justify-between p-4 border-b border-zinc-800 bg-zinc-900/50">
-        <div className="flex items-center gap-2">
-          <Terminal className="w-4 h-4 text-yellow-500" />
-          <span className="text-xs font-bold text-white uppercase tracking-tighter">Nikimaru AI</span>
-        </div>
-        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-      </div>
+    <>
+      {/* Botón Toggle Mobile con color Gold del CSS */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`fixed right-0 top-1/2 -translate-y-1/2 z-50 p-2 bg-secondary border border-border rounded-l-lg lg:hidden ${isOpen ? 'opacity-0' : 'opacity-100'}`}
+      >
+        <ChevronLeft className="w-5 h-5 text-gold" />
+      </button>
 
-      {/* Status Bar en tiempo real */}
-      <div className="px-4 py-2 bg-zinc-900 border-b border-zinc-800 text-[10px] font-mono text-zinc-500">
-        <div className="flex justify-between items-center">
-          <span>BTC: ${currentPrice.toLocaleString()}</span>
-          <span className={isHuellaActive ? "text-yellow-500" : "text-zinc-600"}>
-            HUELLA: {isHuellaActive ? 'DETECTADA 🐋' : 'OFF'}
-          </span>
-        </div>
-      </div>
+      <div className={`fixed lg:relative right-0 top-0 h-full w-80 bg-card border-l border-border z-40 transition-transform duration-300 flex flex-col ${isOpen ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}`}>
 
-      {/* Panel de Mensajes */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-        {messages.map((m, index) => (
-          <div
-            key={index}
-            className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
-            <div className={`max-w-[90%] rounded-lg p-3 text-xs leading-relaxed font-mono ${m.role === 'user'
-                ? 'bg-yellow-500/10 border border-yellow-500/20 text-yellow-200'
-                : 'bg-zinc-800/80 border border-zinc-700 text-zinc-300'
-              }`}>
-              <div className="text-[9px] uppercase opacity-50 mb-1 font-black">
-                {m.role === 'user' ? 'Cazador' : 'Mentor'}
+        {/* Header con Terminal Icon */}
+        <div className="flex items-center justify-between p-4 border-b border-border bg-black">
+          <div className="flex items-center gap-2">
+            <Terminal className={`w-5 h-5 ${isRayoDorado ? 'text-gold animate-pulse-gold' : 'text-muted-foreground'}`} />
+            <span className={`text-xs font-bold tracking-widest ${isRayoDorado ? 'animate-glow-gold text-gold' : 'text-foreground'}`}>
+              MENTOR AI
+            </span>
+          </div>
+          <Sparkles className={`w-4 h-4 ${isHuellaActive ? 'text-gold animate-spin' : 'text-muted'}`} />
+        </div>
+
+        {/* Status Bar usando variables de trading del CSS */}
+        <div className="px-4 py-2 bg-muted/30 border-b border-border text-[10px] font-mono">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">BTC: <span className="text-foreground font-bold">${currentPrice.toLocaleString()}</span></span>
+            <span className={isHuellaActive ? 'text-gold animate-glow-gold' : 'text-muted-foreground'}>
+              HUELLA: {isHuellaActive ? 'ON' : 'OFF'}
+            </span>
+          </div>
+        </div>
+
+        {/* Mensajes con Scrollbar personalizado del CSS */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 font-mono text-[11px]">
+          {messages.map((m, i) => (
+            <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[90%] rounded-md p-3 border ${m.role === 'user'
+                  ? 'bg-secondary border-border text-foreground'
+                  : 'bg-black border-gold/20 text-gold shadow-[0_0_10px_rgba(255,215,0,0.05)]'
+                }`}>
+                {m.content}
               </div>
-              <p className="whitespace-pre-wrap">{m.content}</p>
             </div>
-          </div>
-        ))}
-        {isLoading && (
-          <div className="flex justify-start">
-            <div className="bg-zinc-800/50 rounded-lg p-3 text-xs animate-pulse text-yellow-500 font-mono">
-              Analizando huella...
-            </div>
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Input de Comandos */}
-      <form onSubmit={handleSubmit} className="p-4 border-t border-zinc-800 bg-zinc-950">
-        <div className="flex gap-2">
-          <Input
-            value={input}
-            onChange={handleInputChange}
-            placeholder="Analizá este volumen..."
-            className="flex-1 bg-black border-zinc-800 text-white text-xs focus-visible:ring-yellow-500"
-          />
-          <button
-            type="submit"
-            className="p-2 bg-yellow-500 text-black rounded-md hover:bg-yellow-400 transition-all shadow-[0_0_10px_rgba(234,179,8,0.2)]"
-          >
-            <Send className="w-4 h-4" />
-          </button>
+          ))}
+          <div ref={messagesEndRef} />
         </div>
-      </form>
-    </div>
+
+        {/* Formulario de entrada */}
+        <form onSubmit={handleSubmit} className="p-4 bg-black border-t border-border">
+          <div className="flex gap-2">
+            <Input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Analizar volumen..."
+              className="flex-1 bg-input border-border text-foreground text-xs focus:ring-gold"
+            />
+            <button type="submit" className="p-2 bg-gold text-black rounded hover:opacity-80 transition-opacity">
+              <Send className="w-4 h-4" />
+            </button>
+          </div>
+        </form>
+      </div>
+    </>
   );
 }
