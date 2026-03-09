@@ -3,30 +3,22 @@ import { Roboto_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
-const robotoMono = Roboto_Mono({ 
+// Configuración de fuente optimizada para rendimiento
+const robotoMono = Roboto_Mono({
   subsets: ["latin"],
-  variable: '--font-roboto-mono'
+  variable: '--font-roboto-mono',
+  display: 'swap', // Evita saltos visuales durante la carga
 });
 
 export const metadata: Metadata = {
-  title: 'NIKIMARU - Trading Terminal',
-  description: 'High-frequency trading terminal with real-time BTC/USDT data',
-  generator: 'v0.app',
+  title: 'NIKIMARU | Trading Terminal',
+  description: 'SMC & High-Frequency Trading Intelligence for BTC/USDT',
+  generator: 'Nikimaru OS',
   manifest: '/manifest.json',
   icons: {
     icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
+      { url: '/icon.svg', type: 'image/svg+xml' },
+      { url: '/icon-dark-32x32.png', media: '(prefers-color-scheme: dark)' },
     ],
     apple: '/apple-icon.png',
   },
@@ -37,18 +29,26 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
-  userScalable: false,
+  userScalable: false, // Esencial para terminales de trading en móviles
 }
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode
-}>) {
+}) {
   return (
-    <html lang="en" className="dark">
-      <body className={`${robotoMono.variable} font-mono antialiased bg-black text-foreground`}>
-        {children}
+    // suppressHydrationWarning evita errores por diferencias entre servidor y cliente (común en trading charts)
+    <html lang="es" className="dark" suppressHydrationWarning>
+      <body
+        className={`${robotoMono.variable} font-mono antialiased bg-black text-zinc-200 selection:bg-gold/30`}
+      >
+        {/* Envolvemos el contenido en un contenedor principal para asegurar el layout full-screen */}
+        <div className="relative min-h-screen flex flex-col overflow-hidden">
+          {children}
+        </div>
+
+        {/* Vercel Analytics para monitorear el rendimiento de la terminal */}
         <Analytics />
       </body>
     </html>
