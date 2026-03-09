@@ -1,32 +1,38 @@
-import { OpenAIStream, StreamingTextResponse } from 'ai';
-import { Configuration, OpenAIApi } from 'openai-edge';
+import { openai } from '@ai-sdk/openai';
+import { streamText } from 'ai';
 
-const config = new Configuration({ apiKey: process.env.OPENAI_API_KEY });
-const openai = new OpenAIApi(config);
+// Esto permite que el servidor responda hasta en 30 segundos
+export const maxDuration = 30;
 
 export async function POST(req: Request) {
+  // 1. Extraemos los mensajes y los datos del mercado del cuerpo de la petición
   const { messages, currentMarketData } = await req.json();
 
-  // AQUÍ LE DAS TU PERSONALIDAD Y REGLAS
+  // 2. Definimos el System Prompt (El cerebro del Mentor GenTrading)
   const systemPrompt = `
-    Eres el asistente del "Protocolo del Cazador". Tu biblia es la Metodología Wyckoff e ICT.
-    Reglas estrictas:
-    1. Si no hay volumen sobre la media, advierte que es "puto retail".
-    2. Si el usuario está ansioso, recuérdale el Paso 5: "La Muerte de la Esperanza".
-    3. Tu objetivo es que el usuario no opere si no hay Huella Institucional.
-    
-    Datos actuales del mercado: ${JSON.stringify(currentMarketData)}
+    Eres GenTrading, un mentor experto en trading institucional (SMC) y Metodología Wyckoff.
+    Tu objetivo es auditar al usuario basándote en los libros de Rubén Villahermosa e ICT.
+
+    DATOS EN TIEMPO REAL:
+    - Precio Actual: ${currentMarketData?.precio || 'Desconocido'}
+    - Huella Institucional: ${currentMarketData?.huellaActiva ? 'DETECTADA 🐋' : 'No detectada'}
+    - Rayo Dorado: ${currentMarketData?.rayoDorado ? 'ACTIVO ⚡' : 'Inactivo'}
+    - Temporalidad: ${currentMarketData?.temporalidad || '1m'}
+
+    REGLAS DE ORO:
+    1. Si no hay "Rayo Dorado", advierte que la probabilidad es baja.
+    2. El riesgo máximo es de $80 USD por operación.
+    3. Una vez alcanzado el 1:1, el Stop Loss DEBE ir a Break Even.
+    4. Usa un tono serio, profesional y disciplinado.
   `;
 
-  const response = await openai.createChatCompletion({
-    model: 'gpt-4-turbo', // O gpt-4o para más velocidad
-    stream: true,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      ...messages
-    ],
+  // 3. Ejecutamos la llamada a OpenAI
+  const result = await streamText({
+    model: openai('gpt-4o'), // O el modelo que prefieras (gpt-4o-mini es más barato)
+    system: systemPrompt,
+    messages,
   });
 
-  const stream = OpenAIStream(response);
-  return new StreamingTextResponse(stream);
+  // 4. Devolvemos la respuesta en formato stream
+  return result.toDataStreamResponse();
 }
