@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useCallback } from 'react';
-import { 
-  createChart, 
-  IChartApi, 
+import {
+  createChart,
+  IChartApi,
   ISeriesApi,
   CandlestickData,
   HistogramData,
@@ -20,11 +20,10 @@ interface TradingChartProps {
   isActive: boolean;
   position: Position | null;
   onPriceUpdate?: (price: number) => void;
-  isHuellaActive?: boolean;
   onHuellaChange?: (active: boolean) => void;
   onDirectionChange?: (direction: CandleDirection) => void;
-  isRayoDorado?: boolean;
-  candleDirection?: CandleDirection;
+  isRayoDorado: boolean;
+  candleDirection: CandleDirection;
 }
 
 export function TradingChart({
@@ -35,126 +34,70 @@ export function TradingChart({
   onHuellaChange,
   onDirectionChange,
   isRayoDorado = false,
-  candleDirection: externalDirection,
+  candleDirection: externalDirection, // Lo renombramos para que no choque con la del hook
 }: TradingChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<'Candlestick'> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<'Histogram'> | null>(null);
   const emaSeriesRef = useRef<ISeriesApi<'Line'> | null>(null);
-  const entryLineRef = useRef<ReturnType<ISeriesApi<'Candlestick'>['createPriceLine']> | null>(null);
-  const slLineRef = useRef<ReturnType<ISeriesApi<'Candlestick'>['createPriceLine']> | null>(null);
-  const tpLineRef = useRef<ReturnType<ISeriesApi<'Candlestick'>['createPriceLine']> | null>(null);
+  const entryLineRef = useRef<any>(null);
+  const slLineRef = useRef<any>(null);
+  const tpLineRef = useRef<any>(null);
 
-  const { 
-    candles, 
-    volumes, 
-    currentPrice, 
-    emaValues, 
+  const {
+    candles,
+    volumes,
+    currentPrice,
+    emaValues,
     isHuellaActive,
     isConnected,
-    candleDirection
+    candleDirection: internalDirection // Dirección calculada en tiempo real
   } = useBinanceWebSocket(timeframe, isActive);
 
-  // Notify parent of price updates
+  // Notificar al padre sobre actualizaciones de precio y estado
   useEffect(() => {
-    if (currentPrice > 0 && onPriceUpdate) {
-      onPriceUpdate(currentPrice);
-    }
+    if (currentPrice > 0 && onPriceUpdate) onPriceUpdate(currentPrice);
   }, [currentPrice, onPriceUpdate]);
 
-  // Notify parent of HUELLA status
   useEffect(() => {
-    if (onHuellaChange) {
-      onHuellaChange(isHuellaActive);
-    }
+    if (onHuellaChange) onHuellaChange(isHuellaActive);
   }, [isHuellaActive, onHuellaChange]);
 
-  // Notify parent of candle direction
   useEffect(() => {
-    if (onDirectionChange) {
-      onDirectionChange(candleDirection);
-    }
-  }, [candleDirection, onDirectionChange]);
+    if (onDirectionChange) onDirectionChange(internalDirection);
+  }, [internalDirection, onDirectionChange]);
 
-  // Initialize chart
   const initChart = useCallback(() => {
     if (!chartContainerRef.current || chartRef.current) return;
 
     const chart = createChart(chartContainerRef.current, {
       width: chartContainerRef.current.clientWidth,
       height: chartContainerRef.current.clientHeight,
-      layout: {
-        background: { color: '#000000' },
-        textColor: '#e5e5e5',
-        fontFamily: 'Roboto Mono, monospace',
-      },
-      grid: {
-        vertLines: { color: 'rgba(38, 38, 38, 0.5)' },
-        horzLines: { color: 'rgba(38, 38, 38, 0.5)' },
-      },
-      crosshair: {
-        mode: CrosshairMode.Normal,
-        vertLine: {
-          color: '#ffd700',
-          width: 1,
-          style: 2,
-          labelBackgroundColor: '#ffd700',
-        },
-        horzLine: {
-          color: '#ffd700',
-          width: 1,
-          style: 2,
-          labelBackgroundColor: '#ffd700',
-        },
-      },
-      rightPriceScale: {
-        borderColor: '#262626',
-        scaleMargins: {
-          top: 0.1,
-          bottom: 0.3,
-        },
-      },
-      timeScale: {
-        borderColor: '#262626',
-        timeVisible: true,
-        secondsVisible: false,
-      },
+      layout: { background: { color: '#000000' }, textColor: '#d1d5db' },
+      grid: { vertLines: { color: '#171717' }, horzLines: { color: '#171717' } },
+      crosshair: { mode: CrosshairMode.Normal },
+      rightPriceScale: { borderColor: '#262626' },
+      timeScale: { borderColor: '#262626', timeVisible: true },
     });
 
-    // Candlestick series
     const candleSeries = chart.addCandlestickSeries({
-      upColor: '#00c853',
-      downColor: '#dc143c',
-      borderUpColor: '#00c853',
-      borderDownColor: '#dc143c',
-      wickUpColor: '#00c853',
-      wickDownColor: '#dc143c',
+      upColor: '#22c55e', downColor: '#ef4444',
+      borderUpColor: '#22c55e', borderDownColor: '#ef4444',
+      wickUpColor: '#22c55e', wickDownColor: '#ef4444',
     });
 
-    // Volume series
     const volumeSeries = chart.addHistogramSeries({
-      color: '#26a69a',
-      priceFormat: {
-        type: 'volume',
-      },
-      priceScaleId: '',
+      color: '#3b82f6', priceFormat: { type: 'volume' }, priceScaleId: '',
     });
 
     volumeSeries.priceScale().applyOptions({
-      scaleMargins: {
-        top: 0.8,
-        bottom: 0,
-      },
+      scaleMargins: { top: 0.8, bottom: 0 },
     });
 
-    // EMA line series for volume
     const emaSeries = chart.addLineSeries({
-      color: '#3b82f6',
-      lineWidth: 2,
-      priceScaleId: '',
-      lastValueVisible: false,
-      priceLineVisible: false,
+      color: '#eab308', lineWidth: 1, priceScaleId: '',
+      lastValueVisible: false, priceLineVisible: false,
     });
 
     chartRef.current = chart;
@@ -162,7 +105,6 @@ export function TradingChart({
     volumeSeriesRef.current = volumeSeries;
     emaSeriesRef.current = emaSeries;
 
-    // Handle resize
     const handleResize = () => {
       if (chartContainerRef.current && chartRef.current) {
         chartRef.current.applyOptions({
@@ -173,13 +115,9 @@ export function TradingChart({
     };
 
     window.addEventListener('resize', handleResize);
-
-    return () => {
-      window.removeEventListener('resize', handleResize);
-    };
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // Initialize chart on mount
   useEffect(() => {
     if (isActive) {
       const cleanup = initChart();
@@ -188,167 +126,84 @@ export function TradingChart({
         if (chartRef.current) {
           chartRef.current.remove();
           chartRef.current = null;
-          candleSeriesRef.current = null;
-          volumeSeriesRef.current = null;
-          emaSeriesRef.current = null;
         }
       };
     }
   }, [isActive, initChart]);
 
-  // Update candle data
+  // Actualización de Datos (Candles, Volume, EMA)
   useEffect(() => {
-    if (!candleSeriesRef.current || candles.length === 0) return;
-
-    const chartCandles: CandlestickData<Time>[] = candles.map(c => ({
-      time: c.time as Time,
-      open: c.open,
-      high: c.high,
-      low: c.low,
-      close: c.close,
-    }));
-
-    candleSeriesRef.current.setData(chartCandles);
+    if (candleSeriesRef.current && candles.length > 0) {
+      candleSeriesRef.current.setData(candles as CandlestickData<Time>[]);
+    }
   }, [candles]);
 
-  // Update volume data
   useEffect(() => {
-    if (!volumeSeriesRef.current || volumes.length === 0) return;
-
-    const chartVolumes: HistogramData<Time>[] = volumes.map(v => ({
-      time: v.time as Time,
-      value: v.value,
-      color: v.color,
-    }));
-
-    volumeSeriesRef.current.setData(chartVolumes);
+    if (volumeSeriesRef.current && volumes.length > 0) {
+      volumeSeriesRef.current.setData(volumes as HistogramData<Time>[]);
+    }
   }, [volumes]);
 
-  // Update EMA data
   useEffect(() => {
-    if (!emaSeriesRef.current || emaValues.length === 0 || volumes.length === 0) return;
-
-    const emaData: LineData<Time>[] = volumes.map((v, i) => ({
-      time: v.time as Time,
-      value: emaValues[i] || 0,
-    }));
-
-    emaSeriesRef.current.setData(emaData);
+    if (emaSeriesRef.current && emaValues.length > 0 && volumes.length > 0) {
+      const emaData = volumes.map((v, i) => ({
+        time: v.time as Time,
+        value: emaValues[i] || 0,
+      }));
+      emaSeriesRef.current.setData(emaData);
+    }
   }, [emaValues, volumes]);
 
-  // Update position lines
+  // Dibujado de Líneas de Posición (Entry, SL, TP)
   useEffect(() => {
-    if (!candleSeriesRef.current) return;
+    const s = candleSeriesRef.current;
+    if (!s) return;
 
-    // Remove existing lines
-    if (entryLineRef.current) {
-      candleSeriesRef.current.removePriceLine(entryLineRef.current);
-      entryLineRef.current = null;
-    }
-    if (slLineRef.current) {
-      candleSeriesRef.current.removePriceLine(slLineRef.current);
-      slLineRef.current = null;
-    }
-    if (tpLineRef.current) {
-      candleSeriesRef.current.removePriceLine(tpLineRef.current);
-      tpLineRef.current = null;
-    }
+    [entryLineRef, slLineRef, tpLineRef].forEach(ref => {
+      if (ref.current) { s.removePriceLine(ref.current); ref.current = null; }
+    });
 
     if (position) {
-      // Entry line (Gold)
-      const entryOptions: PriceLineOptions = {
-        price: position.entryPrice,
-        color: '#ffd700',
-        lineWidth: 2,
-        lineStyle: 0,
-        axisLabelVisible: true,
-        title: 'ENTRY',
-        lineVisible: true,
-      };
-      entryLineRef.current = candleSeriesRef.current.createPriceLine(entryOptions);
+      entryLineRef.current = s.createPriceLine({
+        price: position.entryPrice, color: '#eab308', lineWidth: 2, title: 'ENTRY'
+      } as PriceLineOptions);
 
-      // Stop Loss line (Red)
-      const slOptions: PriceLineOptions = {
-        price: position.stopLoss,
-        color: '#dc143c',
-        lineWidth: 2,
-        lineStyle: position.isBreakEven ? 0 : 2,
-        axisLabelVisible: true,
-        title: position.isBreakEven ? 'BE' : 'SL',
-        lineVisible: true,
-      };
-      slLineRef.current = candleSeriesRef.current.createPriceLine(slOptions);
+      slLineRef.current = s.createPriceLine({
+        price: position.stopLoss, color: '#ef4444', lineWidth: 2,
+        title: position.isBreakEven ? 'BE' : 'SL', lineStyle: position.isBreakEven ? 0 : 2
+      } as PriceLineOptions);
 
-      // Take Profit line (Green)
-      const tpOptions: PriceLineOptions = {
-        price: position.takeProfit,
-        color: '#00c853',
-        lineWidth: 2,
-        lineStyle: 0,
-        axisLabelVisible: true,
-        title: 'TP',
-        lineVisible: true,
-      };
-      tpLineRef.current = candleSeriesRef.current.createPriceLine(tpOptions);
+      tpLineRef.current = s.createPriceLine({
+        price: position.takeProfit, color: '#22c55e', lineWidth: 2, title: 'TP'
+      } as PriceLineOptions);
     }
   }, [position]);
 
-  if (!isActive) {
-    return null;
-  }
+  if (!isActive) return null;
 
   return (
-    <div className="relative w-full h-full">
-      <div 
-        ref={chartContainerRef} 
-        className="w-full h-full"
-      />
-      
-      {/* Connection status */}
-      <div className="absolute top-2 left-2 flex items-center gap-2">
-        <div 
-          className={`w-2 h-2 rounded-full ${
-            isConnected ? 'bg-bull' : 'bg-bear'
-          }`}
-        />
-        <span className="text-xs text-muted-foreground">
-          {isConnected ? 'LIVE' : 'CONNECTING...'}
-        </span>
+    <div className="relative w-full h-full bg-black">
+      <div ref={chartContainerRef} className="w-full h-full" />
+
+      {/* HUD de Información */}
+      <div className="absolute top-4 left-4 flex flex-col gap-1 pointer-events-none">
+        <div className="flex items-center gap-2">
+          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`} />
+          <span className="text-[10px] font-bold text-zinc-500 tracking-widest uppercase">
+            {isConnected ? 'Binance Live' : 'Offline'}
+          </span>
+        </div>
+        <div className="text-xl font-black text-white italic">BTC/USDT</div>
       </div>
 
-      {/* Current price */}
-      <div className="absolute top-2 right-2 flex items-center gap-2">
-        <span className="text-xs text-muted-foreground">BTC/USDT</span>
-        <span className="text-sm font-bold text-gold">
-          ${currentPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        </span>
-      </div>
-
-      {/* HUELLA indicator - shows directional RAYO on 1M when volume > EMA */}
-      <div 
-        className={`absolute top-10 right-2 px-3 py-1.5 rounded-lg text-xs font-bold transition-all duration-300 ${
-          isRayoDorado && candleDirection === 'LONG'
-            ? 'bg-bull/30 text-bull border border-bull/50 shadow-lg shadow-bull/30'
-            : isRayoDorado && candleDirection === 'SHORT'
-            ? 'bg-bear/30 text-bear border border-bear/50 shadow-lg shadow-bear/30'
-            : isRayoDorado && candleDirection === 'NEUTRAL'
-            ? 'bg-gold/30 text-gold animate-pulse-gold border border-gold/50'
-            : isHuellaActive 
-            ? 'bg-gold/20 text-gold animate-glow-gold' 
-            : 'bg-secondary text-muted-foreground'
-        }`}
-      >
-        {isRayoDorado && candleDirection === 'LONG' ? 'HUNT LONG' 
-          : isRayoDorado && candleDirection === 'SHORT' ? 'HUNT SHORT'
-          : isRayoDorado && candleDirection === 'NEUTRAL' ? 'ESPERANDO CONFIRMACION'
-          : `HUELLA ${isHuellaActive ? 'ACTIVE' : 'INACTIVE'}`}
-      </div>
-      
-      {/* Timeframe context label */}
-      <div className="absolute top-10 left-2 px-2 py-1 rounded text-xs text-muted-foreground bg-secondary/50">
-        {timeframe === '1h' ? 'TENDENCIA MAYOR (EMA 20)' : 
-         timeframe === '1m' ? 'SENAL DEFINITIVA (EMA 20)' : 
-         'INTERMEDIO (EMA 20)'}
+      <div className="absolute top-4 right-4 text-right pointer-events-none">
+        <div className="text-2xl font-black text-yellow-400 tabular-nums">
+          ${currentPrice.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+        </div>
+        <div className={`text-[10px] font-bold px-2 py-0.5 rounded mt-1 inline-block ${isRayoDorado ? 'bg-yellow-400 text-black animate-pulse' : 'bg-zinc-800 text-zinc-400'
+          }`}>
+          {isRayoDorado ? '⚡ RAYO DORADO ACTIVO' : 'ESPERANDO HUELLA'}
+        </div>
       </div>
     </div>
   );
