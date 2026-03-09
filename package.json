@@ -1,13 +1,22 @@
 {
+  "name": "nikimaru-trading-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
   "dependencies": {
-    "ai": "latest",
     "@ai-sdk/openai": "latest",
+    "ai": "latest",
+    "clsx": "latest",
     "lucide-react": "latest",
     "next": "latest",
     "react": "latest",
     "react-dom": "latest",
     "recharts": "latest",
-    "clsx": "latest",
     "tailwind-merge": "latest"
   }
 }
