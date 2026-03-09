@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Zap, X, Send, Bot, Maximize2, Minimize2, Target, ShieldAlert, TrendingUp, Gauge, DollarSign, Wallet } from 'lucide-react';
+import { Zap, X, Send, Bot, Maximize2, Minimize2, Target, Gauge, DollarSign, Wallet } from 'lucide-react';
 
 export default function NikimaruCompactTerminal() {
   const container = useRef<HTMLDivElement>(null);
@@ -17,7 +17,9 @@ export default function NikimaruCompactTerminal() {
   const [triggerPrice, setTriggerPrice] = useState('');
   const [useTrigger, setUseTrigger] = useState(false);
 
+  // ESTADOS DEL CHAT
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatInput, setChatInput] = useState('');
   const [botPos, setBotPos] = useState({ x: 24, y: 24 });
   const [isDragging, setIsDragging] = useState(false);
   const dragStartPos = useRef({ x: 0, y: 0 });
@@ -58,7 +60,7 @@ export default function NikimaruCompactTerminal() {
     else setPositions(prev => prev.map(p => p.id === id ? { ...p, amount: p.amount * (1 - pct / 100) } : p));
   };
 
-  // BOT DRAG LOGIC
+  // LÓGICA DE BOT REPARADA (DISTINGUE CLICK DE DRAG)
   const onMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
     dragStartPos.current = { x: e.clientX, y: e.clientY };
@@ -72,14 +74,17 @@ export default function NikimaruCompactTerminal() {
     const onMouseUp = (e: MouseEvent) => {
       if (isDragging) {
         const dist = Math.hypot(e.clientX - dragStartPos.current.x, e.clientY - dragStartPos.current.y);
-        if (dist < 5) setIsChatOpen(!isChatOpen);
+        if (dist < 5) setIsChatOpen(prev => !prev);
         setIsDragging(false);
       }
     };
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
-    return () => { window.removeEventListener('mousemove', onMouseMove); window.removeEventListener('mouseup', onMouseUp); };
-  }, [isDragging, isChatOpen]);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, [isDragging]);
 
   useEffect(() => {
     if (container.current) {
@@ -139,7 +144,7 @@ export default function NikimaruCompactTerminal() {
                     <div className="text-right flex-1 px-4"><span className={`text-[10px] font-black ${stats.isProfit ? 'text-[#02c076]' : 'text-[#f84960]'}`}>{stats.roe}%</span></div>
                     <div className="flex gap-1">
                       {[50, 100].map(pct => (
-                        <button key={pct} onClick={() => closePartial(p.id, pct)} className="bg-[#2b3139] hover:bg-zinc-700 text-[8px] px-2 py-1 rounded font-black">{pct === 100 ? 'Cerrar' : `${pct}%`}</button>
+                        <button key={pct} onClick={() => closePartial(p.id, pct)} className="bg-[#2b3139] hover:bg-zinc-700 text-[8px] px-2 py-1 rounded font-black transition-colors">{pct === 100 ? 'Cerrar' : `${pct}%`}</button>
                       ))}
                     </div>
                   </div>
@@ -151,25 +156,16 @@ export default function NikimaruCompactTerminal() {
 
         {!isFullScreen && (
           <div className="w-[240px] border-l border-[#2b2f36] bg-[#161a1e] p-3 flex flex-col gap-2 z-40 overflow-y-auto">
-
-            {/* MONTO COMPACTO */}
             <div className="bg-[#2b3139] p-2 rounded-xl border border-zinc-700">
               <div className="flex justify-between text-[8px] font-black text-zinc-500 uppercase mb-1"><span>Monto USDT</span><Wallet size={10} /></div>
               <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full bg-transparent text-right text-lg font-mono text-white outline-none" />
-              <div className="flex justify-between gap-1 mt-1">
-                {[25, 50, 75, 100].map(p => (
-                  <button key={p} className="flex-1 bg-black/20 hover:bg-[#f0b90b] hover:text-black text-[8px] py-1 rounded transition-all font-bold text-zinc-400">{p}%</button>
-                ))}
-              </div>
             </div>
 
-            {/* LEVERAGE COMPACTO */}
             <div className="bg-black/20 p-2 rounded-xl border border-zinc-800">
               <div className="flex justify-between text-[8px] font-black text-zinc-500 uppercase mb-1"><span>Leverage</span><span className="text-[#f0b90b]">{leverage}x</span></div>
               <input type="range" min="1" max="125" value={leverage} onChange={(e) => setLeverage(parseInt(e.target.value))} className="w-full h-1 accent-[#f0b90b] cursor-pointer" />
             </div>
 
-            {/* TP / SL / TRIGGER EN FILAS MINI */}
             <div className="grid grid-cols-2 gap-2">
               <div className="bg-black/20 p-2 rounded-xl border border-zinc-800"><span className="text-[8px] font-bold text-[#02c076] uppercase block">TP</span><input placeholder="Precio" className="w-full bg-transparent text-[10px] text-right font-mono outline-none" value={tpPrice} onChange={(e) => setTpPrice(e.target.value)} /></div>
               <div className="bg-black/20 p-2 rounded-xl border border-zinc-800"><span className="text-[8px] font-bold text-[#f84960] uppercase block">SL</span><input placeholder="Precio" className="w-full bg-transparent text-[10px] text-right font-mono outline-none" value={slPrice} onChange={(e) => setSlPrice(e.target.value)} /></div>
@@ -177,24 +173,4 @@ export default function NikimaruCompactTerminal() {
 
             <div className={`p-2 rounded-xl border transition-all ${useTrigger ? 'border-[#f0b90b] bg-[#f0b90b]/5' : 'border-zinc-800 bg-black/20'}`}>
               <div className="flex justify-between items-center mb-1"><span className="text-[8px] font-black text-zinc-400 uppercase">Trigger</span><input type="checkbox" checked={useTrigger} onChange={(e) => setUseTrigger(e.target.checked)} className="accent-[#f0b90b]" /></div>
-              <input disabled={!useTrigger} placeholder="0.0" className="w-full bg-transparent text-[10px] text-right font-mono outline-none text-[#f0b90b]" value={triggerPrice} onChange={(e) => setTriggerPrice(e.target.value)} />
-            </div>
-
-            {/* BOTONES LADO A LADO (ESTILO PRO) */}
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              <button onClick={() => handleTrade('LONG')} className="bg-[#02c076] hover:bg-[#02d887] py-3 rounded-lg font-black uppercase text-[10px] shadow-lg active:scale-95 transition-all text-white">Buy / Long</button>
-              <button onClick={() => handleTrade('SHORT')} className="bg-[#f84960] hover:bg-[#ff5d73] py-3 rounded-lg font-black uppercase text-[10px] shadow-lg active:scale-95 transition-all text-white">Sell / Short</button>
-            </div>
-          </div>
-        )}
-
-        {/* NIKIMARU BOT */}
-        <div style={{ bottom: `${botPos.y}px`, right: `${botPos.x}px` }} className="fixed z-[200] flex flex-col items-end pointer-events-none">
-          <div onMouseDown={onMouseDown} className="pointer-events-auto p-3 bg-[#f0b90b] rounded-full shadow-2xl cursor-grab active:cursor-grabbing hover:scale-110 transition-transform">
-            <Bot size={24} className="text-black" />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+              <input disabled={!useTrigger} placeholder="0.0" className="w-full bg-transparent text-[10px] text-right font-mono outline-none text-[#f0b90b]" value
