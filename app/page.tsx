@@ -18,184 +18,68 @@ export default function NikimaruApp() {
   const [currentPrice, setCurrentPrice] = useState<number>(0);
   const [isHuellaActive, setIsHuellaActive] = useState(false);
   const [position, setPosition] = useState<Position | null>(null);
-  
-  // Track HUELLA status per timeframe for multi-timeframe analysis
   const [huella1H, setHuella1H] = useState(false);
   const [huella1M, setHuella1M] = useState(false);
-  
-  // Track candle direction for directional illumination
   const [candleDirection, setCandleDirection] = useState<CandleDirection>('NEUTRAL');
-  
-  // Flash message state
   const [showFlashMessage, setShowFlashMessage] = useState(false);
   const [lastFlashDirection, setLastFlashDirection] = useState<CandleDirection | null>(null);
-  
-  // RAYO DORADO: Definitive signal when 1M HUELLA is active
-  // Major trend confirmation comes from 1H EMA
+
   const isRayoDorado = huella1M && activeTimeframe === '1m';
 
-  // Handle price updates from chart
   const handlePriceUpdate = useCallback((price: number) => {
     setCurrentPrice(price);
   }, []);
 
-  // Handle HUELLA status changes per timeframe
   const handleHuellaChange = useCallback((active: boolean, tf: TimeFrame) => {
     setIsHuellaActive(active);
-    if (tf === '1h') {
-      setHuella1H(active);
-    } else if (tf === '1m') {
-      setHuella1M(active);
-    }
+    if (tf === '1h') setHuella1H(active);
+    else if (tf === '1m') setHuella1M(active);
   }, []);
 
-  // Handle candle direction changes
   const handleDirectionChange = useCallback((direction: CandleDirection, tf: TimeFrame) => {
-    if (tf === activeTimeframe) {
-      setCandleDirection(direction);
-    }
+    if (tf === activeTimeframe) setCandleDirection(direction);
   }, [activeTimeframe]);
 
-  // Handle position creation
   const handleStartHunt = useCallback((newPosition: Position) => {
     setPosition(newPosition);
   }, []);
 
-  // Handle position close
   const handleClosePosition = useCallback(() => {
     setPosition(null);
   }, []);
 
-  // Auto Break-Even logic
-  useEffect(() => {
-    if (!position || position.isBreakEven || currentPrice <= 0) return;
-
-    const entryPrice = position.entryPrice;
-    const stopLoss = position.stopLoss;
-    const takeProfit = position.takeProfit;
-
-    // Calculate 1:1 ratio price
-    const riskDistance = Math.abs(entryPrice - stopLoss);
-    let breakEvenTrigger: number;
-
-    if (position.side === 'LONG') {
-      breakEvenTrigger = entryPrice + riskDistance;
-      
-      if (currentPrice >= breakEvenTrigger) {
-        setPosition({
-          ...position,
-          stopLoss: entryPrice,
-          isBreakEven: true,
-        });
-      }
-    } else {
-      breakEvenTrigger = entryPrice - riskDistance;
-      
-      if (currentPrice <= breakEvenTrigger) {
-        setPosition({
-          ...position,
-          stopLoss: entryPrice,
-          isBreakEven: true,
-        });
-      }
-    }
-  }, [currentPrice, position]);
-
-  // Show flash message when RAYO DORADO activates with direction
-  useEffect(() => {
-    if (isRayoDorado && candleDirection !== 'NEUTRAL' && candleDirection !== lastFlashDirection) {
-      setShowFlashMessage(true);
-      setLastFlashDirection(candleDirection);
-      
-      // Auto-hide after 2 seconds
-      const timer = setTimeout(() => {
-        setShowFlashMessage(false);
-      }, 2000);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [isRayoDorado, candleDirection, lastFlashDirection]);
-
-  // Reset flash direction when RAYO DORADO deactivates
-  useEffect(() => {
-    if (!isRayoDorado) {
-      setLastFlashDirection(null);
-    }
-  }, [isRayoDorado]);
-
-  // Check if position hit SL or TP
-  useEffect(() => {
-    if (!position || currentPrice <= 0) return;
-
-    if (position.side === 'LONG') {
-      if (currentPrice <= position.stopLoss) {
-        alert(position.isBreakEven ? 'Break Even hit!' : 'Stop Loss hit!');
-        setPosition(null);
-      } else if (currentPrice >= position.takeProfit) {
-        alert('Take Profit hit! +$160 profit!');
-        setPosition(null);
-      }
-    } else {
-      if (currentPrice >= position.stopLoss) {
-        alert(position.isBreakEven ? 'Break Even hit!' : 'Stop Loss hit!');
-        setPosition(null);
-      } else if (currentPrice <= position.takeProfit) {
-        alert('Take Profit hit! +$160 profit!');
-        setPosition(null);
-      }
-    }
-  }, [currentPrice, position]);
-
   return (
-    <div className="min-h-screen h-screen bg-background flex flex-col overflow-hidden">
+    <div className="min-h-screen h-screen bg-black flex flex-col overflow-hidden text-white">
       {/* Header */}
-      <header className="flex items-center justify-between px-4 py-3 border-b border-border bg-card">
+      <header className="flex items-center justify-between px-4 py-2 border-b border-gold/20 bg-black/50">
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Zap className="w-6 h-6 text-gold" />
-            <h1 className="text-lg font-bold text-foreground">NIKIMARU</h1>
-          </div>
-          <span className="text-xs text-muted-foreground hidden sm:inline">
-            High-Frequency Trading Terminal
-          </span>
+          <Zap className="w-5 h-5 text-gold" />
+          <h1 className="text-md font-bold tracking-tighter">NIKIMARU TERMINAL</h1>
         </div>
 
-        {/* Timeframe Tabs - Large touch-friendly buttons */}
-        <div className="flex items-center gap-2 bg-secondary rounded-xl p-1.5">
+        <div className="flex items-center gap-1 bg-white/5 rounded-lg p-1">
           {TIMEFRAMES.map((tf) => (
             <button
               key={tf.value}
               onClick={() => setActiveTimeframe(tf.value)}
-              className={`min-w-[56px] px-4 py-3 text-sm font-bold rounded-lg transition-all touch-manipulation ${
-                activeTimeframe === tf.value
-                  ? 'bg-gold text-black shadow-lg shadow-gold/30'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary/80 active:scale-95'
-              }`}
+              className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${activeTimeframe === tf.value ? 'bg-gold text-black' : 'text-gray-400 hover:text-white'
+                }`}
             >
               {tf.label}
             </button>
           ))}
         </div>
-
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Clock className="w-4 h-4" />
-          <span className="hidden sm:inline">March 7, 2026</span>
-        </div>
+        <div className="text-[10px] text-gray-500 font-mono">BTC: ${currentPrice.toLocaleString()}</div>
       </header>
 
-      {/* Main Content */}
+      {/* Main Content Layout */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Panel - Chart and Controls */}
-        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-          {/* Chart Area */}
-          <div className="flex-1 relative min-h-[300px] lg:min-h-0">
+
+        {/* Gráfico y Consola (Izquierda y Centro) */}
+        <div className="flex-1 flex flex-col overflow-hidden border-r border-gold/10">
+          <div className="flex-1 relative">
             {TIMEFRAMES.map((tf) => (
-              <div
-                key={tf.value}
-                className={`absolute inset-0 ${
-                  activeTimeframe === tf.value ? 'block' : 'hidden'
-                }`}
-              >
+              <div key={tf.value} className={activeTimeframe === tf.value ? 'absolute inset-0 block' : 'hidden'}>
                 <TradingChart
                   timeframe={tf.value}
                   isActive={activeTimeframe === tf.value}
@@ -210,8 +94,8 @@ export default function NikimaruApp() {
             ))}
           </div>
 
-          {/* Operations Console - Sidebar on desktop, bottom on mobile */}
-          <div className="lg:w-80 border-t lg:border-t-0 lg:border-l border-border overflow-y-auto">
+          {/* Consola de Operaciones Inferior */}
+          <div className="h-48 border-t border-gold/10 bg-black/40 overflow-y-auto">
             <OperationsConsole
               currentPrice={currentPrice}
               isHuellaActive={isHuellaActive}
@@ -223,46 +107,16 @@ export default function NikimaruApp() {
           </div>
         </div>
 
-        {/* Right Panel - AI Chat */}
-        <NikimaruChat
-          currentPrice={currentPrice}
-          isHuellaActive={isHuellaActive}
-          timeframe={activeTimeframe}
-        />
+        {/* Panel de IA Nikimaru (DERECHA) */}
+        <div className="w-80 flex flex-col bg-black/20 p-2">
+          <NikimaruChat
+            currentPrice={currentPrice}
+            isHuellaActive={isHuellaActive}
+            timeframe={activeTimeframe}
+          />
+        </div>
+
       </div>
-
-      {/* Floating Action Button for Mobile */}
-      <button
-        onClick={() => {
-          if (!position && currentPrice > 0) {
-            const stopLossPercent = 1;
-            const riskAmount = 80 - 0.80;
-            const stopLossDistance = currentPrice * (stopLossPercent / 100);
-            const lotSize = Math.floor((riskAmount / stopLossDistance) * 1000) / 1000;
-            const sl = currentPrice - stopLossDistance;
-            const tp = currentPrice + (stopLossDistance * 2);
-
-            handleStartHunt({
-              entryPrice: currentPrice,
-              stopLoss: sl,
-              takeProfit: tp,
-              quantity: lotSize,
-              side: 'LONG',
-              isBreakEven: false,
-            });
-          }
-        }}
-        disabled={!!position}
-        className={`fixed bottom-6 right-6 w-16 h-16 rounded-full flex items-center justify-center shadow-lg transition-all lg:hidden z-50 ${
-          isRayoDorado && !position
-            ? 'bg-gold animate-pulse-gold'
-            : isHuellaActive && !position
-            ? 'bg-gold/90'
-            : 'bg-gold/60'
-        } ${position ? 'opacity-50 cursor-not-allowed' : 'hover:scale-110 active:scale-95'}`}
-      >
-        <Zap className="w-6 h-6 text-black" />
-      </button>
     </div>
   );
 }
