@@ -1,39 +1,40 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Zap, Trash2, X, Send, Bot, Sparkles, Mic, MicOff, Camera, Smartphone, GripVertical } from 'lucide-react';
+import { Zap, Trash2, X, Send, Bot, Mic, Camera, Smartphone } from 'lucide-react';
 
-export default function NikimaruRobotOS() {
+export default function NikimaruUltimateTerminal() {
   const container = useRef<HTMLDivElement>(null);
   const [leverage, setLeverage] = useState(20);
+  const [selectedPrice, setSelectedPrice] = useState('68250.0');
   const [positions, setPositions] = useState<any[]>([]);
 
-  // ESTADOS DE LA BURBUJA FLOTANTE
+  // ESTADOS DEL ROBOT
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isListening, setIsListening] = useState(false);
-  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [botPos, setBotPos] = useState({ x: 24, y: 24 });
   const [isDragging, setIsDragging] = useState(false);
-  const dragRef = useRef<HTMLDivElement>(null);
 
-  // Manejo del arrastre (Drag & Drop)
+  // Funciones de Trading
+  const handleTrade = (type: 'LONG' | 'SHORT') => {
+    const newPos = { id: Date.now(), type, entry: selectedPrice, leverage };
+    setPositions([newPos, ...positions]);
+  };
+
+  // Manejo del Drag (Movimiento del Robot)
   const handleMouseDown = (e: React.MouseEvent) => {
     setIsDragging(true);
-    const offsetLeft = e.currentTarget.getBoundingClientRect().left;
-    const offsetTop = e.currentTarget.getBoundingClientRect().top;
-
     const onMouseMove = (moveEvent: MouseEvent) => {
-      setPosition({
-        x: window.innerWidth - moveEvent.clientX - 40,
-        y: window.innerHeight - moveEvent.clientY - 40
+      setBotPos({
+        x: window.innerWidth - moveEvent.clientX - 30,
+        y: window.innerHeight - moveEvent.clientY - 30
       });
     };
-
     const onMouseUp = () => {
       setIsDragging(false);
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
     };
-
     document.addEventListener('mousemove', onMouseMove);
     document.addEventListener('mouseup', onMouseUp);
   };
@@ -50,103 +51,122 @@ export default function NikimaruRobotOS() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#0b0e11] text-[#eaecef] font-sans flex flex-col overflow-hidden relative select-none">
+    <div className="min-h-screen bg-[#0b0e11] text-[#eaecef] font-sans flex flex-col overflow-hidden relative">
 
-      {/* BURBUJA DE ROBOT ARRASTRABLE */}
-      <div
-        ref={dragRef}
-        style={{ bottom: `${position.y || 24}px`, right: `${position.x || 24}px` }}
-        className="fixed z-[200] flex flex-col items-end"
-      >
-        {isChatOpen && (
-          <div className="w-80 h-[480px] bg-[#161a1e] border border-[#f0b90b]/40 rounded-3xl shadow-[0_0_40px_rgba(240,185,11,0.2)] flex flex-col overflow-hidden mb-4 animate-in fade-in zoom-in duration-200">
-            {/* Header del Robot */}
-            <div className="p-4 bg-[#f0b90b] text-black flex justify-between items-center cursor-default">
-              <div className="flex items-center gap-2">
-                <Bot size={20} className="animate-bounce" />
-                <span className="font-black text-xs uppercase italic">Nikimaru Bot</span>
-              </div>
-              <div className="flex gap-2">
-                <Camera size={14} className="hover:scale-125 transition-transform cursor-pointer" />
-                <button onClick={() => setIsChatOpen(false)}><X size={18} /></button>
-              </div>
-            </div>
+      {/* HEADER */}
+      <div className="h-12 border-b border-[#2b2f36] flex items-center px-4 bg-[#161a1e] justify-between z-10">
+        <div className="flex items-center gap-2 text-[#f0b90b] font-bold uppercase tracking-tighter">
+          <Zap size={20} fill="#f0b90b" />
+          <span className="text-lg">Nikimaru <span className="text-white font-light">Terminal</span></span>
+        </div>
+      </div>
 
-            {/* Cuerpo del Chat */}
-            <div className="flex-1 p-4 overflow-y-auto space-y-4 text-[11px] bg-gradient-to-b from-black/20 to-transparent">
-              <div className="bg-[#f0b90b]/10 border border-[#f0b90b]/20 p-3 rounded-2xl text-[#f0b90b]">
-                <p className="font-bold mb-1">SISTEMA ONLINE 🤖</p>
-                Estoy listo jefe. Podés moverme donde quieras arrastrándome desde el icono. ¿Analizamos el gráfico?
-              </div>
-              {isListening && (
-                <div className="flex gap-1 justify-center py-2">
-                  {[1, 2, 3, 4].map(i => <div key={i} className="w-1 h-4 bg-[#f0b90b] animate-pulse" />)}
-                </div>
-              )}
-            </div>
+      <div className="flex flex-1 overflow-hidden relative">
 
-            {/* Input Multimodal */}
-            <div className="p-3 bg-[#1e2329] border-t border-zinc-800">
-              <div className="flex gap-2 items-center bg-[#0b0e11] rounded-xl px-2 py-1">
-                <button
-                  onClick={() => setIsListening(!isListening)}
-                  className={`p-2 rounded-lg ${isListening ? 'text-red-500 animate-pulse' : 'text-zinc-500 hover:text-[#f0b90b]'}`}
-                >
-                  <Mic size={18} />
-                </button>
-                <input
-                  type="text"
-                  placeholder="Hablar con Nikimaru..."
-                  className="bg-transparent flex-1 border-none outline-none text-xs py-2"
-                />
-                <button className="text-[#f0b90b] p-2"><Send size={18} /></button>
-              </div>
-            </div>
+        {/* IZQUIERDA: LIBRO DE ÓRDENES (RECUPERADO) */}
+        <div className="w-[200px] border-r border-[#2b2f36] flex flex-col bg-[#161a1e] text-[10px] font-mono z-10">
+          <div className="p-2 text-zinc-500 border-b border-[#2b2f36] flex justify-between uppercase text-[9px]">
+            <span>Precio</span>
+            <span>Cantidad</span>
           </div>
-        )}
+          <div className="flex-1 flex flex-col justify-end text-[#f84960] overflow-hidden">
+            <div className="flex justify-between px-2 cursor-pointer hover:bg-white/5" onClick={() => setSelectedPrice('68310.5')}><span>68310.5</span><span>0.412</span></div>
+            <div className="flex justify-between px-2 cursor-pointer hover:bg-white/5" onClick={() => setSelectedPrice('68305.2')}><span>68305.2</span><span>1.105</span></div>
+          </div>
+          <div className="p-3 text-xl font-bold text-[#02c076] bg-[#1e2329] border-y border-[#2b2f36] text-center">
+            68,250.40
+          </div>
+          <div className="flex-1 text-[#02c076] overflow-hidden">
+            <div className="flex justify-between px-2 cursor-pointer hover:bg-white/5" onClick={() => setSelectedPrice('68245.8')}><span>68245.8</span><span>0.890</span></div>
+            <div className="flex justify-between px-2 cursor-pointer hover:bg-white/5" onClick={() => setSelectedPrice('68240.1')}><span>68240.1</span><span>2.441</span></div>
+          </div>
+        </div>
 
-        {/* ICONO DEL ROBOT (DISPARADOR Y MANIJA) */}
+        {/* CENTRO: GRÁFICO Y POSICIONES */}
+        <div className="flex-1 flex flex-col bg-black overflow-hidden relative z-0">
+          <div className="flex-1 relative">
+            <div id="tv_chart_stable" ref={container} className="w-full h-full" />
+          </div>
+          <div className="h-40 border-t border-[#2b2f36] bg-[#161a1e] overflow-y-auto p-2">
+            <div className="text-[10px] text-zinc-500 uppercase font-bold mb-2">Posiciones ({positions.length})</div>
+            <table className="w-full text-[11px]">
+              <tbody className="divide-y divide-zinc-800">
+                {positions.map(p => (
+                  <tr key={p.id} className="text-zinc-300">
+                    <td className={`p-1 font-bold ${p.type === 'LONG' ? 'text-[#02c076]' : 'text-[#f84960]'}`}>{p.type}</td>
+                    <td className="p-1 font-mono">${p.entry}</td>
+                    <td className="p-1 text-right">
+                      <button onClick={() => setPositions(positions.filter(x => x.id !== p.id))} className="text-zinc-600 hover:text-white"><Trash2 size={14} /></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* DERECHA: PANEL DE CONTROL (BOTONES ACTIVOS) */}
+        <div className="w-[280px] border-l border-[#2b2f36] bg-[#161a1e] p-4 flex flex-col gap-4 z-10">
+          <div className="bg-[#2b3139] p-3 rounded-lg border border-transparent focus-within:border-[#f0b90b]">
+            <span className="text-[10px] text-zinc-500 font-bold uppercase block mb-1">Precio</span>
+            <input
+              type="text"
+              className="bg-transparent w-full text-right text-lg outline-none font-mono text-white"
+              value={selectedPrice}
+              onChange={(e) => setSelectedPrice(e.target.value)}
+            />
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => handleTrade('LONG')}
+              className="w-full bg-[#02c076] hover:bg-[#03d382] py-4 rounded-xl font-black uppercase transition-all active:scale-95"
+            >
+              Comprar / Long
+            </button>
+            <button
+              onClick={() => handleTrade('SHORT')}
+              className="w-full bg-[#f84960] hover:bg-[#ff5d72] py-4 rounded-xl font-black uppercase transition-all active:scale-95"
+            >
+              Vender / Short
+            </button>
+          </div>
+        </div>
+
+        {/* ROBOT ARRASTRABLE (EN UNA CAPA SUPERIOR INDEPENDIENTE) */}
         <div
-          onMouseDown={handleMouseDown}
-          className={`relative p-1 rounded-full cursor-grab active:cursor-grabbing transition-transform ${isDragging ? 'scale-110' : ''}`}
+          style={{ bottom: `${botPos.y}px`, right: `${botPos.x}px` }}
+          className="fixed z-[50] flex flex-col items-end pointer-events-none"
         >
-          {/* Luz de fondo del robot */}
-          <div className="absolute inset-0 bg-[#f0b90b] rounded-full blur-md opacity-20 animate-pulse" />
-
-          <button
-            onClick={() => setIsChatOpen(!isChatOpen)}
-            className={`relative p-4 rounded-full shadow-2xl transition-all duration-300 ${isChatOpen ? 'bg-[#2b3139] rotate-90' : 'bg-[#f0b90b]'}`}
-          >
-            {isChatOpen ? <X size={28} className="text-white" /> : <Bot size={32} className="text-black" />}
-          </button>
-
-          {/* Pequeña manija para indicar que se arrastra */}
-          {!isChatOpen && (
-            <div className="absolute -top-2 left-1/2 -translate-x-1/2 text-[8px] bg-black px-2 rounded-full border border-zinc-700 text-zinc-500 py-0.5">
-              MOVER
+          {isChatOpen && (
+            <div className="w-72 h-96 bg-[#1e2329] border border-[#f0b90b]/40 rounded-3xl shadow-2xl flex flex-col overflow-hidden mb-4 pointer-events-auto animate-in fade-in zoom-in duration-200">
+              <div className="p-3 bg-[#f0b90b] text-black flex justify-between items-center">
+                <div className="flex items-center gap-2"><Bot size={18} /><span className="text-[10px] font-black uppercase">Nikimaru OS</span></div>
+                <button onClick={() => setIsChatOpen(false)}><X size={16} /></button>
+              </div>
+              <div className="flex-1 p-4 overflow-y-auto text-[11px] space-y-3">
+                <div className="bg-[#f0b90b]/10 border border-[#f0b90b]/20 p-2 rounded-xl text-[#f0b90b]">¡Sistemas listos! Arrastrame desde mi icono si te molesto.</div>
+              </div>
+              <div className="p-3 bg-[#161a1e] flex gap-2">
+                <button onClick={() => setIsListening(!isListening)} className={`p-2 rounded-lg ${isListening ? 'bg-red-500' : 'bg-zinc-800'}`}><Mic size={14} /></button>
+                <input className="bg-zinc-800 flex-1 rounded-lg px-2 text-[10px] outline-none" placeholder="Preguntar..." />
+              </div>
             </div>
           )}
-        </div>
-      </div>
 
-      {/* TERMINAL (HEADER + CHART + SIDEBAR) */}
-      <div className="h-10 border-b border-[#2b2f36] flex items-center px-4 bg-[#161a1e] justify-between">
-        <div className="flex items-center gap-2 text-[#f0b90b] font-bold text-xs">
-          <Zap size={14} fill="#f0b90b" /> <span>NIKIMARU FUTURES</span>
+          <div
+            onMouseDown={handleMouseDown}
+            className={`pointer-events-auto p-1 rounded-full cursor-grab active:cursor-grabbing ${isDragging ? 'scale-110' : ''}`}
+          >
+            <button
+              onClick={() => setIsChatOpen(!isChatOpen)}
+              className={`p-4 rounded-full shadow-2xl transition-all ${isChatOpen ? 'bg-zinc-800' : 'bg-[#f0b90b]'}`}
+            >
+              <Bot size={28} className={isChatOpen ? 'text-white' : 'text-black'} />
+            </button>
+          </div>
         </div>
-      </div>
 
-      <div className="flex flex-1 overflow-hidden">
-        <div className="w-48 border-r border-zinc-800 bg-[#161a1e]">
-          <div className="p-4 text-[9px] text-zinc-600 font-mono">ORDER_BOOK_SIM_ACTIVE</div>
-        </div>
-        <div className="flex-1 bg-black">
-          <div id="tv_chart_stable" ref={container} className="w-full h-full" />
-        </div>
-        <div className="w-64 border-l border-zinc-800 bg-[#161a1e] p-4">
-          <button className="w-full bg-[#02c076] py-3 rounded font-black text-xs uppercase shadow-lg shadow-green-900/20 active:translate-y-0.5 transition-all">Abrir Long</button>
-          <button className="w-full bg-[#f84960] py-3 rounded font-black text-xs uppercase mt-2 shadow-lg shadow-red-900/20">Abrir Short</button>
-        </div>
       </div>
     </div>
   );
