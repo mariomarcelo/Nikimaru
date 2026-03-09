@@ -1,49 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import dynamic from 'next/dynamic';
+import { useState } from 'react';
 import { NikimaruBubble } from '@/components/nikimaru-bubble';
 
-const TradingChart = dynamic(() => import('@/components/trading-chart').then(mod => mod.TradingChart), { ssr: false });
-const OperationsConsole = dynamic(() => import('@/components/operations-console').then(mod => mod.OperationsConsole), { ssr: false });
-
-export default function NikimaruApp() {
-  const [mounted, setMounted] = useState(false);
-  const [currentPrice, setCurrentPrice] = useState(0);
-  const [isHuellaActive, setIsHuellaActive] = useState(false);
-
-  useEffect(() => { setMounted(true); }, []);
-  if (!mounted) return null;
+export default function Page() {
+  const [price] = useState(65000.50);
+  const [huella] = useState(false);
 
   return (
-    <div className="h-screen w-screen bg-black text-white flex flex-col overflow-hidden uppercase font-mono">
-      {/* BURBUJA FLOTANTE (Independiente) */}
-      <NikimaruBubble />
-
-      <main className="flex-1 flex overflow-hidden p-2 gap-2">
-        {/* GRÁFICO (TRADINGVIEW) - Máximo espacio */}
-        <section className="flex-[4] rounded-xl border border-zinc-800 overflow-hidden">
-          <TradingChart
-            onPriceUpdate={setCurrentPrice}
-            onHuellaChange={setIsHuellaActive}
-            timeframe="1m"
-            isActive={true}
-            position={null}
-          />
-        </section>
-
-        {/* CONSOLA - Lateral derecho fijo */}
-        <section className="w-80 rounded-xl border border-zinc-800 bg-zinc-900/10 backdrop-blur-md">
-          <OperationsConsole
-            currentPrice={currentPrice}
-            isHuellaActive={isHuellaActive}
-            isRayoDorado={isHuellaActive}
-            onStartHunt={() => { }}
-            onClosePosition={() => { }}
-            position={null}
-          />
-        </section>
-      </main>
+    <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white p-4">
+      <h1 className="text-2xl font-black text-yellow-500 mb-2 uppercase tracking-tighter">Nikimaru Terminal</h1>
+      <div className="p-10 border border-zinc-800 rounded-2xl bg-zinc-950 text-zinc-500 font-mono text-sm">
+        [ Gráfico de Trading Activo ]
+      </div>
+      <NikimaruBubble price={price} huella={huella} direction="NEUTRAL" />
     </div>
   );
 }
