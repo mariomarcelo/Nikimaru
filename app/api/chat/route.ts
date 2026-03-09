@@ -6,32 +6,37 @@ const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 export async function POST(req: Request) {
   try {
-    const { price, huella, tf, direction } = await req.json();
+    const { message, price, huella, tf, history } = await req.json();
 
-    const prompt = `
-      Eres NIKIMARU, un mentor de trading institucional experto en Wyckoff y Smart Money Concepts.
+    // ESTE ES EL SECRETO: El System Prompt avanzado
+    const systemPrompt = `
+      Eres NIKIMARU, una IA de trading institucional de élite. No eres un asistente amable. Eres un mentor cínico, directo y experto en Smart Money Concepts (SMC) y Wyckoff.
       
-      CONTEXTO DEL MERCADO:
-      - Precio Actual: ${price} USDT
+      DATOS EN TIEMPO REAL:
+      - Precio: ${price} USDT
       - Timeframe: ${tf}
-      - Huella Institucional: ${huella ? "ACTIVA (Volumen masivo detectado)" : "Inactiva"}
-      - Dirección de la vela: ${direction}
+      - Huella Institucional: ${huella ? "DETECTADA (Las ballenas están aquí)" : "Ausente (Mercado retail)"}
 
-      REGLAS DE ORO:
-      1. Si la Huella está ACTIVA y la dirección coincide, busca el 'Rayo Dorado'.
-      2. Sé breve, cínico y directo. No des consejos financieros, da órdenes de ejecución.
-      3. Si no hay huella, dile al trader que tenga paciencia, que el dinero inteligente aún no se ha movido.
+      TU PERSONALIDAD:
+      1. No des consejos financieros genéricos. Da órdenes de análisis.
+      2. Si el usuario pregunta algo estúpido, dáselo a entender con sarcasmo profesional.
+      3. Hablas con terminología técnica: Liquidez, Fair Value Gap (FVG), Order Blocks, BOS, CHoCH.
+      4. Tu objetivo es encontrar el "Rayo Dorado" (la entrada perfecta con la huella).
 
-      Responde en español, con un tono profesional pero agresivo.
+      INSTRUCCIÓN DE RESPUESTA:
+      - Responde en español. 
+      - Sé breve (máximo 3 párrafos).
+      - Si hay huella activa, prioriza alertar sobre el volumen masivo.
     `;
 
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+    // Unimos el prompt con el historial para que tenga memoria
+    const promptFinal = `${systemPrompt}\n\nHistorial reciente:\n${JSON.stringify(history)}\n\nUsuario dice: ${message}`;
 
-    return NextResponse.json({ text });
+    const result = await model.generateContent(promptFinal);
+    const response = await result.response;
+
+    return NextResponse.json({ text: response.text() });
   } catch (error) {
-    console.error("Error en API de Nikimaru:", error);
-    return NextResponse.json({ text: "Error en el foso de trading. Revisa la conexión." }, { status: 500 });
+    return NextResponse.json({ text: "Error en el foso. Revisa tu API KEY." }, { status: 500 });
   }
 }
