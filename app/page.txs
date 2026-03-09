@@ -1,0 +1,105 @@
+'use client';
+
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { Zap, ShieldCheck, TrendingUp } from 'lucide-react';
+import { useChat } from 'ai/react'; // Volvemos a la ruta clásica por compatibilidad
+import { TradingChart } from '@/components/trading-chart';
+import { OperationsConsole } from '@/components/operations-console';
+import type { TimeFrame, Position, CandleDirection } from '@/lib/types';
+
+const TIMEFRAMES: { value: TimeFrame; label: string }[] = [
+  { value: '1h', label: '1H' },
+  { value: '15m', label: '15M' },
+  { value: '1m', label: '1M' },
+];
+
+export default function NikimaruApp() {
+  const [activeTimeframe, setActiveTimeframe] = useState<TimeFrame>('1m');
+  const [currentPrice, setCurrentPrice] = useState<number>(0);
+  const [isHuellaActive, setIsHuellaActive] = useState(false);
+  const [position, setPosition] = useState<Position | null>(null);
+  const [candleDirection, setCandleDirection] = useState<CandleDirection>('NEUTRAL');
+
+  const isRayoDorado = isHuellaActive && activeTimeframe === '1m';
+
+  const { messages, input, handleInputChange, handleSubmit } = useChat();
+
+  // Handlers simplificados para evitar errores de referencia
+  const handlePriceUpdate = (p: number) => setCurrentPrice(p);
+  const handleHuella = (a: boolean) => setIsHuellaActive(a);
+  const handleDir = (d: CandleDirection) => setCandleDirection(d);
+  
+  const handleStartHunt = () => {
+    if (!currentPrice) return;
+    setPosition({
+      entryPrice: currentPrice,
+      stopLoss: currentPrice * 0.99,
+      takeProfit: currentPrice * 1.01,
+      side: candleDirection === 'SHORT' ? 'SHORT' : 'LONG',
+      isBreakEven: false
+    });
+  };
+
+  return (
+    <div className="flex h-screen bg-black text-white font-mono">
+      <div className="flex-1 flex flex-col border-r border-zinc-800">
+        <header className="p-4 border-b border-zinc-800 flex justify-between items-center">
+          <h1 className="font-bold">NIKIMARU V3</h1>
+          <div className="flex gap-2">
+            {TIMEFRAMES.map(tf => (
+              <button 
+                key={tf.value} 
+                onClick={() => setActiveTimeframe(tf.value)}
+                className={`px-3 py-1 text-xs rounded ${activeTimeframe === tf.value ? 'bg-yellow-500 text-black' : 'bg-zinc-900'}`}
+              >
+                {tf.label}
+              </button>
+            ))}
+          </div>
+        </header>
+
+        <div className="flex-1 bg-zinc-900/20">
+          <TradingChart
+            timeframe={activeTimeframe}
+            isActive={true}
+            position={position}
+            onPriceUpdate={handlePriceUpdate}
+            onHuellaChange={handleHuella}
+            onDirectionChange={handleDir}
+            isRayoDorado={isRayoDorado}
+            candleDirection={candleDirection}
+          />
+        </div>
+
+        <div className="bg-black border-t border-zinc-800">
+          <OperationsConsole
+            currentPrice={currentPrice}
+            position={position}
+            isRayoDorado={isRayoDorado}
+            candleDirection={candleDirection}
+            handleStartHunt={handleStartHunt}
+          />
+        </div>
+      </div>
+
+      <div className="w-80 flex flex-col bg-zinc-950">
+        <div className="p-4 border-b border-zinc-800 text-xs font-bold uppercase text-zinc-500 text-center">Mentor Chat</div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {messages.map(m => (
+            <div key={m.id} className={`text-xs p-2 rounded ${m.role === 'user' ? 'bg-zinc-800 ml-4' : 'bg-zinc-900 text-yellow-500 mr-4'}`}>
+              {m.content}
+            </div>
+          ))}
+        </div>
+        <form onSubmit={handleSubmit} className="p-4 border-t border-zinc-800">
+          <input 
+            className="w-full bg-zinc-900 p-2 rounded text-xs outline-none focus:border-yellow-500 border border-transparent"
+            value={input}
+            onChange={handleInputChange}
+            placeholder="Comando..."
+          />
+        </form>
+      </div>
+    </div>
+  );
+}
