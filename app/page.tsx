@@ -145,8 +145,8 @@ export default function NikimaruApp() {
             <div key={m.id} className={`flex flex-col ${m.role === 'user' ? 'items-end' : 'items-start'}`}>
               <span className="text-[10px] uppercase text-zinc-600 mb-1">{m.role === 'user' ? 'Cazador' : '🏛️ Mentor'}</span>
               <div className={`max-w-[90%] p-3 rounded-xl text-sm ${m.role === 'user'
-                  ? 'bg-zinc-800 text-white'
-                  : 'bg-cyan-950/20 border border-cyan-900/30 text-cyan-50 shadow-[0_0_20px_rgba(6,182,212,0.05)]'
+                ? 'bg-zinc-800 text-white'
+                : 'bg-cyan-950/20 border border-cyan-900/30 text-cyan-50 shadow-[0_0_20px_rgba(6,182,212,0.05)]'
                 }`}>
                 {m.content}
               </div>
