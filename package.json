@@ -18,5 +18,8 @@
     "react-dom": "latest",
     "recharts": "latest",
     "tailwind-merge": "latest"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14"
   }
 }
