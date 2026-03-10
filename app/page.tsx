@@ -24,7 +24,7 @@ export default function NikimaruUltimateTerminal() {
   const dragStartPos = useRef({ x: 0, y: 0 });
   const [orderBook, setOrderBook] = useState({ asks: [] as any[], bids: [] as any[] });
 
-  // 1. MOTOR DE PRECIO (Simulación)
+  // 1. MOTOR DE PRECIO
   useEffect(() => {
     const interval = setInterval(() => {
       const p = livePrice + (Math.random() - 0.5) * 12;
@@ -81,35 +81,37 @@ export default function NikimaruUltimateTerminal() {
     return () => window.removeEventListener('mousemove', onMouseMove);
   }, [isDragging]);
 
-  // 3. TRADINGVIEW INTEGRATION (FIXED HEIGHT & AUTOSIZE)
+  // 3. TRADINGVIEW INTEGRATION (FIXED FOR FULLSCREEN)
   useEffect(() => {
-    if (container.current) {
-      container.current.innerHTML = '';
-      const script = document.createElement("script");
-      script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
-      script.async = true;
-      script.innerHTML = JSON.stringify({
-        "autosize": true,
-        "width": "100%",
-        "height": "100%",
-        "symbol": "BINANCE:BTCUSDT",
-        "interval": "1",
-        "theme": "dark",
-        "style": "1",
-        "locale": "es",
-        "enable_publishing": false,
-        "hide_side_toolbar": false,
-        "allow_symbol_change": true,
-        "container_id": "tv_chart",
-        "timezone": "Etc/UTC",
-        "withdateranges": true
-      });
-      container.current.appendChild(script);
-    }
+    const timer = setTimeout(() => { // Agregamos un pequeño delay para que el DOM se asiente
+      if (container.current) {
+        container.current.innerHTML = '';
+        const script = document.createElement("script");
+        script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+        script.async = true;
+        script.innerHTML = JSON.stringify({
+          "autosize": true,
+          "symbol": "BINANCE:BTCUSDT",
+          "interval": "1",
+          "theme": "dark",
+          "style": "1",
+          "locale": "es",
+          "hide_side_toolbar": false,
+          "allow_symbol_change": true,
+          "container_id": "tv_chart",
+          "timezone": "Etc/UTC",
+          "width": "100%",
+          "height": "100%",
+        });
+        container.current.appendChild(script);
+      }
+    }, 100); // 100ms de gracia
+
+    return () => clearTimeout(timer);
   }, [isFullScreen]);
 
   return (
-    <div className="h-screen w-screen bg-[#0b0e11] text-[#eaecef] font-sans grid grid-rows-[auto_1fr] overflow-hidden select-none">
+    <div className="h-screen w-screen bg-[#0b0e11] text-[#eaecef] flex flex-col overflow-hidden select-none">
 
       {/* HEADER */}
       {!isFullScreen && (
@@ -123,13 +125,13 @@ export default function NikimaruUltimateTerminal() {
         </header>
       )}
 
-      {/* CUERPO PRINCIPAL (GRID ESTANCO) */}
-      <div className={`grid ${isFullScreen ? 'grid-cols-1' : 'grid-cols-[170px_1fr_250px]'} flex-1 overflow-hidden transition-all duration-300`}>
+      {/* CUERPO PRINCIPAL (USANDO FLEX-1 PARA GARANTIZAR ALTO TOTAL) */}
+      <div className={`flex flex-1 overflow-hidden relative`}>
 
         {/* CAJA 1: ORDER BOOK */}
         {!isFullScreen && (
-          <aside className="border-r border-[#2b2f36] flex flex-col bg-[#161a1e] font-mono text-[9px] overflow-hidden">
-            <div className="p-2 border-b border-[#2b2f36] text-[8px] font-black text-zinc-500 text-center uppercase">Order Book</div>
+          <aside className="w-[170px] border-r border-[#2b2f36] flex flex-col bg-[#161a1e] font-mono text-[9px] shrink-0">
+            <div className="p-2 border-b border-[#2b2f36] text-[8px] font-black text-zinc-500 text-center uppercase italic">Order Book</div>
             <div className="flex-1 flex flex-col justify-end overflow-hidden">
               {orderBook.asks.map((a, i) => (
                 <div key={i} onClick={() => setEntryPrice(a.p)} className="flex justify-between px-2 py-[1px] text-[#f84960] hover:bg-red-500/10 cursor-pointer">
@@ -137,7 +139,7 @@ export default function NikimaruUltimateTerminal() {
                 </div>
               ))}
             </div>
-            <div className="p-2 text-xs font-black text-[#02c076] bg-black/40 border-y border-[#2b2f36] text-center italic cursor-pointer animate-pulse" onClick={() => setEntryPrice(livePrice.toFixed(1))}>
+            <div className="p-2 text-xs font-black text-[#02c076] bg-black/40 border-y border-[#2b2f36] text-center italic" onClick={() => setEntryPrice(livePrice.toFixed(1))}>
               ${livePrice.toFixed(1)}
             </div>
             <div className="flex-1 overflow-hidden">
@@ -150,23 +152,19 @@ export default function NikimaruUltimateTerminal() {
           </aside>
         )}
 
-        {/* CAJA 2: CHART + POSICIONES (CENTRO DINÁMICO REPARADO) */}
-        <main className="flex flex-col bg-black relative overflow-hidden min-w-0 h-full">
+        {/* CAJA 2: CHART (OCUPA TODO LO QUE QUEDA) */}
+        <main className="flex-1 flex flex-col bg-black relative min-w-0 h-full">
           {isFullScreen && (
             <button onClick={() => setIsFullScreen(false)} className="absolute top-4 right-4 z-[999] bg-[#161a1e]/90 text-[#f0b90b] px-4 py-2 rounded-xl border border-[#f0b90b]/40 shadow-2xl font-black text-[10px] backdrop-blur-md flex items-center gap-2 hover:bg-[#f0b90b] hover:text-black transition-all">
               <Minimize2 size={14} /> VOLVER A TERMINAL
             </button>
           )}
 
-          {/* El contenedor ahora tiene h-full para forzar al iframe a crecer */}
-          <div
-            key={isFullScreen ? 'full' : 'split'}
-            className="flex-1 w-full h-full min-h-0 bg-black"
-          >
+          <div className="flex-1 w-full h-full relative">
             <div
               id="tv_chart"
               ref={container}
-              className="w-full h-full"
+              className="absolute inset-0 w-full h-full"
             />
           </div>
 
@@ -179,21 +177,16 @@ export default function NikimaruUltimateTerminal() {
                   <div key={p.id} className={`flex flex-col bg-black/40 p-3 rounded-xl mb-2 border-l-4 ${s.isProfit ? 'border-[#02c076]' : 'border-[#f84960]'}`}>
                     <div className="flex justify-between items-center mb-2">
                       <div className="flex flex-col">
-                        <span className={`text-[10px] font-black ${p.type === 'LONG' ? 'text-[#02c076]' : 'text-[#f84960]'}`}>
-                          {p.type} {p.leverage}x | {p.amount.toFixed(1)} USDT
-                        </span>
-                        <span className="text-[9px] text-zinc-500 font-mono italic">Entry: {p.entry.toFixed(1)}</span>
+                        <span className={`text-[10px] font-black ${p.type === 'LONG' ? 'text-[#02c076]' : 'text-[#f84960]'}`}>{p.type} {p.leverage}x</span>
+                        <span className="text-[9px] text-zinc-500">Entry: {p.entry.toFixed(1)}</span>
                       </div>
                       <div className="text-right">
-                        <span className={`text-[12px] font-black block ${s.isProfit ? 'text-[#02c076]' : 'text-[#f84960]'}`}>{s.roe}%</span>
-                        <span className="text-[9px] text-zinc-400 font-mono italic">${s.pnl} USDT</span>
+                        <span className={`text-[12px] font-black ${s.isProfit ? 'text-[#02c076]' : 'text-[#f84960]'}`}>{s.roe}%</span>
                       </div>
                     </div>
                     <div className="flex gap-1">
                       {[25, 50, 75, 100].map(pct => (
-                        <button key={pct} onClick={() => closePosition(p.id, pct)} className="flex-1 bg-[#2b3139] hover:bg-[#f0b90b] hover:text-black text-[8px] py-1.5 rounded font-black transition-all uppercase">
-                          {pct === 100 ? 'Cerrar' : `${pct}%`}
-                        </button>
+                        <button key={pct} onClick={() => closePosition(p.id, pct)} className="flex-1 bg-[#2b3139] hover:bg-[#f0b90b] hover:text-black text-[8px] py-1 rounded font-black transition-all">{pct}%</button>
                       ))}
                     </div>
                   </div>
@@ -205,33 +198,25 @@ export default function NikimaruUltimateTerminal() {
 
         {/* CAJA 3: PANEL DE CONTROL */}
         {!isFullScreen && (
-          <aside className="border-l border-[#2b2f36] bg-[#161a1e] p-4 flex flex-col gap-4 overflow-y-auto shadow-2xl">
-            <div className="bg-[#2b3139] p-3 rounded-xl border border-zinc-700 shrink-0">
+          <aside className="w-[250px] border-l border-[#2b2f36] bg-[#161a1e] p-4 flex flex-col gap-4 overflow-y-auto shrink-0 shadow-2xl">
+            <div className="bg-[#2b3139] p-3 rounded-xl border border-zinc-700">
               <span className="text-[8px] font-black text-zinc-500 uppercase flex items-center gap-1 mb-2"><Tag size={10} /> Precio Orden</span>
               <input type="number" value={entryPrice} onChange={(e) => setEntryPrice(e.target.value)} className="w-full bg-transparent text-right text-lg font-mono text-[#f0b90b] outline-none" />
             </div>
 
-            <div className="bg-[#2b3139] p-3 rounded-xl border border-zinc-700 shrink-0">
-              <span className="text-[8px] font-black text-zinc-500 uppercase flex items-center gap-1 mb-2"><DollarSign size={10} /> Monto a Invertir</span>
+            <div className="bg-[#2b3139] p-3 rounded-xl border border-zinc-700">
+              <span className="text-[8px] font-black text-zinc-500 uppercase flex items-center gap-1 mb-2"><DollarSign size={10} /> Monto USDT</span>
               <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-full bg-transparent text-right text-lg font-mono text-white outline-none" />
             </div>
 
-            <div className="bg-black/20 p-3 rounded-xl border border-zinc-800 shrink-0">
+            <div className="bg-black/20 p-3 rounded-xl border border-zinc-800">
               <div className="flex justify-between text-[8px] font-black text-zinc-400 uppercase mb-2"><span>Apalancamiento</span><span className="text-[#f0b90b]">{leverage}x</span></div>
               <input type="range" min="1" max="125" value={leverage} onChange={(e) => setLeverage(parseInt(e.target.value))} className="w-full h-1.5 accent-[#f0b90b] cursor-pointer" />
             </div>
 
-            <div className={`p-3 rounded-xl border transition-all shrink-0 ${useTrigger ? 'border-[#f0b90b] bg-[#f0b90b]/5 ring-1 ring-[#f0b90b]/30' : 'border-zinc-800 bg-black/20'}`}>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-[8px] font-black text-zinc-400 uppercase flex items-center gap-1"><Target size={10} /> Gatillo</span>
-                <input type="checkbox" checked={useTrigger} onChange={(e) => setUseTrigger(e.target.checked)} className="w-4 h-4 accent-[#f0b90b]" />
-              </div>
-              <input disabled={!useTrigger} placeholder="Precio Gatillo" className="w-full bg-transparent text-right text-xs font-mono text-[#f0b90b] outline-none placeholder-zinc-700" value={triggerPrice} onChange={(e) => setTriggerPrice(e.target.value)} />
-            </div>
-
             <div className="grid grid-cols-2 gap-3 mt-auto pt-4">
-              <button onClick={() => handleTrade('LONG')} className="bg-[#02c076] hover:bg-[#02d887] py-4 rounded-xl font-black uppercase text-[10px] text-white border-b-4 border-[#01a666] active:scale-95 transition-all">Buy / Long</button>
-              <button onClick={() => handleTrade('SHORT')} className="bg-[#f84960] hover:bg-[#ff5d73] py-4 rounded-xl font-black uppercase text-[10px] text-white border-b-4 border-[#d13a4d] active:scale-95 transition-all">Sell / Short</button>
+              <button onClick={() => handleTrade('LONG')} className="bg-[#02c076] py-4 rounded-xl font-black uppercase text-[10px] text-white border-b-4 border-[#01a666] active:scale-95 transition-all">Buy / Long</button>
+              <button onClick={() => handleTrade('SHORT')} className="bg-[#f84960] py-4 rounded-xl font-black uppercase text-[10px] text-white border-b-4 border-[#d13a4d] active:scale-95 transition-all">Sell / Short</button>
             </div>
           </aside>
         )}
@@ -245,24 +230,8 @@ export default function NikimaruUltimateTerminal() {
               <span className="flex items-center gap-2"><Bot size={16} /> Nikimaru Terminal</span>
               <button onClick={() => setIsChatOpen(false)} className="bg-black/10 p-1 rounded-full"><X size={16} /></button>
             </div>
-            <div className="flex-1 p-5 overflow-y-auto text-[11px] bg-[#0b0e11]/80 space-y-4">
-              <div className="bg-[#2b3139] p-3 rounded-2xl rounded-tl-none text-zinc-100 border border-zinc-700 leading-relaxed italic">
-                "Pantalla completa reparada, jefe. Gráfico al 100% de escala."
-              </div>
-            </div>
-            <div className="p-4 bg-[#1e2329] border-t border-[#2b2f36] flex flex-col gap-3 shrink-0">
-              <div className="flex gap-2">
-                <input
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  className="bg-[#0b0e11] flex-1 rounded-2xl px-4 text-[11px] text-white py-3 outline-none border border-zinc-800 focus:border-[#f0b90b]/40"
-                  placeholder="Comandos de IA..."
-                />
-                <button className="bg-[#f0b90b] p-3 rounded-2xl text-black hover:scale-105 active:scale-95 transition-all"><Send size={18} /></button>
-              </div>
-              <button className="w-full bg-[#2b3139] py-2.5 rounded-xl flex items-center justify-center gap-2 text-[#f0b90b] text-[9px] font-bold border border-zinc-700">
-                <Mic size={14} /> ESCUCHANDO...
-              </button>
+            <div className="flex-1 p-5 overflow-y-auto text-[11px] bg-[#0b0e11]/80 italic text-zinc-400">
+              "Gráfico forzado al 100% de la pantalla. Si no se ve, prueba a refrescar una vez, pero el delay de 100ms debería arreglarlo."
             </div>
           </div>
         )}
