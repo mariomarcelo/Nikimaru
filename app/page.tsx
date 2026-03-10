@@ -24,7 +24,7 @@ export default function NikimaruUltimateTerminal() {
   const dragStartPos = useRef({ x: 0, y: 0 });
   const [orderBook, setOrderBook] = useState({ asks: [] as any[], bids: [] as any[] });
 
-  // 1. MOTOR DE PRECIO Y ORDER BOOK
+  // 1. MOTOR DE PRECIO (Simulación)
   useEffect(() => {
     const interval = setInterval(() => {
       const p = livePrice + (Math.random() - 0.5) * 12;
@@ -81,7 +81,7 @@ export default function NikimaruUltimateTerminal() {
     return () => window.removeEventListener('mousemove', onMouseMove);
   }, [isDragging]);
 
-  // 3. TRADINGVIEW INTEGRATION (REPARADO CON KEY DINÁMICO)
+  // 3. TRADINGVIEW INTEGRATION (FIXED HEIGHT & AUTOSIZE)
   useEffect(() => {
     if (container.current) {
       container.current.innerHTML = '';
@@ -90,15 +90,16 @@ export default function NikimaruUltimateTerminal() {
       script.async = true;
       script.innerHTML = JSON.stringify({
         "autosize": true,
+        "width": "100%",
+        "height": "100%",
         "symbol": "BINANCE:BTCUSDT",
         "interval": "1",
         "theme": "dark",
         "style": "1",
         "locale": "es",
-        "hide_top_toolbar": false,
+        "enable_publishing": false,
         "hide_side_toolbar": false,
         "allow_symbol_change": true,
-        "save_image": true,
         "container_id": "tv_chart",
         "timezone": "Etc/UTC",
         "withdateranges": true
@@ -149,21 +150,25 @@ export default function NikimaruUltimateTerminal() {
           </aside>
         )}
 
-        {/* CAJA 2: CHART + POSICIONES (CENTRO DINÁMICO) */}
-        <main className="flex flex-col bg-black relative overflow-hidden min-w-0">
+        {/* CAJA 2: CHART + POSICIONES (CENTRO DINÁMICO REPARADO) */}
+        <main className="flex flex-col bg-black relative overflow-hidden min-w-0 h-full">
           {isFullScreen && (
             <button onClick={() => setIsFullScreen(false)} className="absolute top-4 right-4 z-[999] bg-[#161a1e]/90 text-[#f0b90b] px-4 py-2 rounded-xl border border-[#f0b90b]/40 shadow-2xl font-black text-[10px] backdrop-blur-md flex items-center gap-2 hover:bg-[#f0b90b] hover:text-black transition-all">
               <Minimize2 size={14} /> VOLVER A TERMINAL
             </button>
           )}
 
-          {/* El KEY aquí es vital para que TradingView se redibuje al cambiar el tamaño del grid */}
+          {/* El contenedor ahora tiene h-full para forzar al iframe a crecer */}
           <div
             key={isFullScreen ? 'full' : 'split'}
-            id="tv_chart"
-            ref={container}
-            className="flex-1 w-full h-full"
-          />
+            className="flex-1 w-full h-full min-h-0 bg-black"
+          >
+            <div
+              id="tv_chart"
+              ref={container}
+              className="w-full h-full"
+            />
+          </div>
 
           {!isFullScreen && (
             <section className="h-48 border-t border-[#2b2f36] bg-[#161a1e] p-2 overflow-y-auto shrink-0">
@@ -200,7 +205,7 @@ export default function NikimaruUltimateTerminal() {
 
         {/* CAJA 3: PANEL DE CONTROL */}
         {!isFullScreen && (
-          <aside className="border-l border-[#2b2f36] bg-[#161a1e] p-4 flex flex-col gap-4 overflow-y-auto shadow-2xl overflow-x-hidden">
+          <aside className="border-l border-[#2b2f36] bg-[#161a1e] p-4 flex flex-col gap-4 overflow-y-auto shadow-2xl">
             <div className="bg-[#2b3139] p-3 rounded-xl border border-zinc-700 shrink-0">
               <span className="text-[8px] font-black text-zinc-500 uppercase flex items-center gap-1 mb-2"><Tag size={10} /> Precio Orden</span>
               <input type="number" value={entryPrice} onChange={(e) => setEntryPrice(e.target.value)} className="w-full bg-transparent text-right text-lg font-mono text-[#f0b90b] outline-none" />
@@ -232,17 +237,17 @@ export default function NikimaruUltimateTerminal() {
         )}
       </div>
 
-      {/* CAPA FLOTANTE: NIKIMARU BOT (LAYER 1000) */}
+      {/* CAPA FLOTANTE: NIKIMARU BOT */}
       <div style={{ bottom: `${botPos.y}px`, right: `${botPos.x}px` }} className="fixed z-[1000] flex flex-col items-end pointer-events-none">
         {isChatOpen && (
-          <div className="w-80 h-[400px] bg-[#161a1e] border border-[#f0b90b]/30 rounded-[32px] shadow-2xl flex flex-col overflow-hidden mb-6 pointer-events-auto animate-in fade-in slide-in-from-bottom-8 duration-300">
+          <div className="w-80 h-[400px] bg-[#161a1e] border border-[#f0b90b]/30 rounded-[32px] shadow-2xl flex flex-col overflow-hidden mb-6 pointer-events-auto animate-in fade-in slide-in-from-bottom-8">
             <div className="p-4 bg-[#f0b90b] text-black flex justify-between items-center font-black text-[11px] uppercase shrink-0">
               <span className="flex items-center gap-2"><Bot size={16} /> Nikimaru Terminal</span>
               <button onClick={() => setIsChatOpen(false)} className="bg-black/10 p-1 rounded-full"><X size={16} /></button>
             </div>
             <div className="flex-1 p-5 overflow-y-auto text-[11px] bg-[#0b0e11]/80 space-y-4">
               <div className="bg-[#2b3139] p-3 rounded-2xl rounded-tl-none text-zinc-100 border border-zinc-700 leading-relaxed italic">
-                "Cajas blindadas activadas, jefe. Gráfico configurado para auto-ajustarse en pantalla completa."
+                "Pantalla completa reparada, jefe. Gráfico al 100% de escala."
               </div>
             </div>
             <div className="p-4 bg-[#1e2329] border-t border-[#2b2f36] flex flex-col gap-3 shrink-0">
@@ -255,7 +260,7 @@ export default function NikimaruUltimateTerminal() {
                 />
                 <button className="bg-[#f0b90b] p-3 rounded-2xl text-black hover:scale-105 active:scale-95 transition-all"><Send size={18} /></button>
               </div>
-              <button className="w-full bg-[#2b3139] py-2.5 rounded-xl flex items-center justify-center gap-2 text-[#f0b90b] text-[9px] font-bold hover:bg-[#363c45] border border-zinc-700">
+              <button className="w-full bg-[#2b3139] py-2.5 rounded-xl flex items-center justify-center gap-2 text-[#f0b90b] text-[9px] font-bold border border-zinc-700">
                 <Mic size={14} /> ESCUCHANDO...
               </button>
             </div>
@@ -264,7 +269,7 @@ export default function NikimaruUltimateTerminal() {
         <div
           onMouseDown={onMouseDown}
           onMouseUp={onMouseUp}
-          className="pointer-events-auto p-4 bg-[#f0b90b] rounded-full shadow-[0_0_30px_rgba(240,185,11,0.4)] cursor-grab active:cursor-grabbing hover:scale-110 transition-all flex items-center justify-center border-2 border-black/10"
+          className="pointer-events-auto p-4 bg-[#f0b90b] rounded-full shadow-[0_0_30px_rgba(240,185,11,0.4)] cursor-grab active:cursor-grabbing hover:scale-110 transition-all border-2 border-black/10"
         >
           <Bot size={32} className="text-black" />
         </div>
