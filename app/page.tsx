@@ -81,7 +81,7 @@ export default function NikimaruUltimateTerminal() {
     return () => window.removeEventListener('mousemove', onMouseMove);
   }, [isDragging]);
 
-  // TRADINGVIEW INTEGRATION (ACTUALIZADO CON INDICADORES Y DIBUJO)
+  // TRADINGVIEW INTEGRATION (CON BARRA DE HERRAMIENTAS Y FX ACTIVADOS)
   useEffect(() => {
     if (container.current) {
       container.current.innerHTML = '';
@@ -241,7 +241,7 @@ export default function NikimaruUltimateTerminal() {
               </div>
               <div className="flex-1 p-5 overflow-y-auto text-[11px] bg-[#0b0e11]/80 space-y-4">
                 <div className="bg-[#2b3139] p-3 rounded-2xl rounded-tl-none text-zinc-100 border border-zinc-700 leading-relaxed italic">
-                  "Sistemas listos, jefe. Tienes las herramientas de dibujo activadas y el buscador de indicadores de la comunidad en el botón FX."
+                  "Nikimaru OS actualizado: El motor de TradingView ahora permite usar scripts de la comunidad y herramientas de dibujo completas."
                 </div>
               </div>
               <div className="p-4 bg-[#1e2329] border-t border-[#2b2f36] flex flex-col gap-3">
@@ -250,12 +250,12 @@ export default function NikimaruUltimateTerminal() {
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     className="bg-[#0b0e11] flex-1 rounded-2xl px-4 text-[11px] text-white py-3 outline-none border border-zinc-800 focus:border-[#f0b90b]/40"
-                    placeholder="Comandos de IA..."
+                    placeholder="Escribir comando..."
                   />
                   <button className="bg-[#f0b90b] p-3 rounded-2xl text-black hover:scale-105 active:scale-95 transition-all"><Send size={18} /></button>
                 </div>
                 <button className="w-full bg-[#2b3139] py-2.5 rounded-xl flex items-center justify-center gap-2 text-[#f0b90b] text-[9px] font-bold hover:bg-[#363c45] border border-zinc-700">
-                  <Mic size={14} /> ESCUCHANDO...
+                  <Mic size={14} /> MICRÓFONO LISTO
                 </button>
               </div>
             </div>
