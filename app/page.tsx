@@ -1,268 +1,129 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
-import { Zap, Clock } from 'lucide-react';
-import { TradingChart } from '@/components/trading-chart';
-import { OperationsConsole } from '@/components/operations-console';
-import { NikimaruChat } from '@/components/nikimaru-chat';
-import type { TimeFrame, Position, CandleDirection } from '@/lib/types';
+import { useEffect, useRef, useState } from 'react';
+import { Zap, Bot, Send, X, Eye, Camera } from 'lucide-react';
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const TIMEFRAMES: { value: TimeFrame; label: string }[] = [
-  { value: '1h', label: '1H' },
-  { value: '15m', label: '15M' },
-  { value: '1m', label: '1M' },
-];
+// --- PROTOCOLO GEMINI (GRATIS Y CON VISIÓN) ---
+const GEMINI_KEY = "AIzaSyA7GR9DsQknVPrUTkD6flepYGQTOUFRd10";
+const genAI = new GoogleGenerativeAI(GEMINI_KEY);
 
-export default function NikimaruApp() {
-  const [activeTimeframe, setActiveTimeframe] = useState<TimeFrame>('1m');
-  const [currentPrice, setCurrentPrice] = useState<number>(0);
-  const [isHuellaActive, setIsHuellaActive] = useState(false);
-  const [position, setPosition] = useState<Position | null>(null);
-  
-  // Track HUELLA status per timeframe for multi-timeframe analysis
-  const [huella1H, setHuella1H] = useState(false);
-  const [huella1M, setHuella1M] = useState(false);
-  
-  // Track candle direction for directional illumination
-  const [candleDirection, setCandleDirection] = useState<CandleDirection>('NEUTRAL');
-  
-  // Flash message state
-  const [showFlashMessage, setShowFlashMessage] = useState(false);
-  const [lastFlashDirection, setLastFlashDirection] = useState<CandleDirection | null>(null);
-  
-  // RAYO DORADO: Definitive signal when 1M HUELLA is active
-  // Major trend confirmation comes from 1H EMA
-  const isRayoDorado = huella1M && activeTimeframe === '1m';
+export default function NikimaruVision() {
+  const container = useRef<HTMLDivElement>(null);
+  const [chatHistory, setChatHistory] = useState([{ role: 'bot', text: 'Sensores de visión Gemini activos. Esperando órdenes, Operador...' }]);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Handle price updates from chart
-  const handlePriceUpdate = useCallback((price: number) => {
-    setCurrentPrice(price);
-  }, []);
+  // --- TELEMETRÍA DE BINANCE ---
+  const obtenerPrecioReal = async (symbol: string = "BTCUSDT") => {
+    try {
+      const res = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol.toUpperCase()}`);
+      const data = await res.json();
+      return data.price;
+    } catch { return "fuera de línea"; }
+  };
 
-  // Handle HUELLA status changes per timeframe
-  const handleHuellaChange = useCallback((active: boolean, tf: TimeFrame) => {
-    setIsHuellaActive(active);
-    if (tf === '1h') {
-      setHuella1H(active);
-    } else if (tf === '1m') {
-      setHuella1M(active);
+  const hablarIA = async (mensaje: string) => {
+    setIsLoading(true);
+    try {
+      const precio = await obtenerPrecioReal();
+
+      // Inicializar el modelo Gemini 1.5 Flash (Soporta Imagen/Texto/Video)
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+      const promptSistema = `Eres Nikimaru, una IA de trading Cyberpunk. 
+      CONTEXTO ACTUAL: BTC está a ${precio} USDT. 
+      INSTRUCCIÓN: Responde de forma técnica, fría y muy breve. Usa términos como 'Fractalidad', 'Order Blocks' y 'Liquidez'. 
+      MENSAJE DEL USUARIO: ${mensaje}`;
+
+      const result = await model.generateContent(promptSistema);
+      const respuesta = result.response.text();
+
+      setChatHistory(prev => [...prev, { role: 'bot', text: respuesta }]);
+
+      // Audio-Sincronización
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(respuesta);
+      utterance.rate = 1.2;
+      window.speechSynthesis.speak(utterance);
+
+    } catch (e) {
+      setChatHistory(prev => [...prev, { role: 'bot', text: "ERROR: Enlace con Gemini interrumpido." }]);
+    } finally {
+      setIsLoading(false);
     }
-  }, []);
+  };
 
-  // Handle candle direction changes
-  const handleDirectionChange = useCallback((direction: CandleDirection, tf: TimeFrame) => {
-    if (tf === activeTimeframe) {
-      setCandleDirection(direction);
-    }
-  }, [activeTimeframe]);
+  const handleSend = () => {
+    if (!chatInput.trim() || isLoading) return;
+    setChatHistory(prev => [...prev, { role: 'user', text: chatInput }]);
+    hablarIA(chatInput);
+    setChatInput('');
+  };
 
-  // Handle position creation
-  const handleStartHunt = useCallback((newPosition: Position) => {
-    setPosition(newPosition);
-  }, []);
-
-  // Handle position close
-  const handleClosePosition = useCallback(() => {
-    setPosition(null);
-  }, []);
-
-  // Auto Break-Even logic
   useEffect(() => {
-    if (!position || position.isBreakEven || currentPrice <= 0) return;
-
-    const entryPrice = position.entryPrice;
-    const stopLoss = position.stopLoss;
-    const takeProfit = position.takeProfit;
-
-    // Calculate 1:1 ratio price
-    const riskDistance = Math.abs(entryPrice - stopLoss);
-    let breakEvenTrigger: number;
-
-    if (position.side === 'LONG') {
-      breakEvenTrigger = entryPrice + riskDistance;
-      
-      if (currentPrice >= breakEvenTrigger) {
-        setPosition({
-          ...position,
-          stopLoss: entryPrice,
-          isBreakEven: true,
+    const timer = setTimeout(() => {
+      if (container.current) {
+        container.current.innerHTML = '';
+        const script = document.createElement("script");
+        script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+        script.async = true;
+        script.innerHTML = JSON.stringify({
+          "autosize": true, "symbol": "BINANCE:BTCUSDT", "interval": "1", "theme": "dark", "container_id": "tv_chart", "style": "1", "locale": "es"
         });
+        container.current.appendChild(script);
       }
-    } else {
-      breakEvenTrigger = entryPrice - riskDistance;
-      
-      if (currentPrice <= breakEvenTrigger) {
-        setPosition({
-          ...position,
-          stopLoss: entryPrice,
-          isBreakEven: true,
-        });
-      }
-    }
-  }, [currentPrice, position]);
-
-  // Show flash message when RAYO DORADO activates with direction
-  useEffect(() => {
-    if (isRayoDorado && candleDirection !== 'NEUTRAL' && candleDirection !== lastFlashDirection) {
-      setShowFlashMessage(true);
-      setLastFlashDirection(candleDirection);
-      
-      // Auto-hide after 2 seconds
-      const timer = setTimeout(() => {
-        setShowFlashMessage(false);
-      }, 2000);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [isRayoDorado, candleDirection, lastFlashDirection]);
-
-  // Reset flash direction when RAYO DORADO deactivates
-  useEffect(() => {
-    if (!isRayoDorado) {
-      setLastFlashDirection(null);
-    }
-  }, [isRayoDorado]);
-
-  // Check if position hit SL or TP
-  useEffect(() => {
-    if (!position || currentPrice <= 0) return;
-
-    if (position.side === 'LONG') {
-      if (currentPrice <= position.stopLoss) {
-        alert(position.isBreakEven ? 'Break Even hit!' : 'Stop Loss hit!');
-        setPosition(null);
-      } else if (currentPrice >= position.takeProfit) {
-        alert('Take Profit hit! +$160 profit!');
-        setPosition(null);
-      }
-    } else {
-      if (currentPrice >= position.stopLoss) {
-        alert(position.isBreakEven ? 'Break Even hit!' : 'Stop Loss hit!');
-        setPosition(null);
-      } else if (currentPrice <= position.takeProfit) {
-        alert('Take Profit hit! +$160 profit!');
-        setPosition(null);
-      }
-    }
-  }, [currentPrice, position]);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
-    <div className="min-h-screen h-screen bg-background flex flex-col overflow-hidden">
-      {/* Header */}
-      <header className="flex items-center justify-between px-4 py-3 border-b border-border bg-card">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Zap className="w-6 h-6 text-gold" />
-            <h1 className="text-lg font-bold text-foreground">NIKIMARU</h1>
-          </div>
-          <span className="text-xs text-muted-foreground hidden sm:inline">
-            High-Frequency Trading Terminal
-          </span>
+    <div className="h-screen w-screen bg-[#0b0e11] text-white flex flex-col overflow-hidden italic font-sans">
+      <header className="h-12 border-b border-[#f0b90b]/20 flex items-center px-4 bg-[#161a1e] justify-between shadow-2xl">
+        <div className="flex items-center gap-2 text-[#f0b90b] font-black uppercase tracking-tighter">
+          <Zap size={18} className="fill-[#f0b90b]" /> <span>Nikimaru Gemini-Vision</span>
         </div>
-
-        {/* Timeframe Tabs - Large touch-friendly buttons */}
-        <div className="flex items-center gap-2 bg-secondary rounded-xl p-1.5">
-          {TIMEFRAMES.map((tf) => (
-            <button
-              key={tf.value}
-              onClick={() => setActiveTimeframe(tf.value)}
-              className={`min-w-[56px] px-4 py-3 text-sm font-bold rounded-lg transition-all touch-manipulation ${
-                activeTimeframe === tf.value
-                  ? 'bg-gold text-black shadow-lg shadow-gold/30'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary/80 active:scale-95'
-              }`}
-            >
-              {tf.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Clock className="w-4 h-4" />
-          <span className="hidden sm:inline">March 7, 2026</span>
-        </div>
+        <div className="text-[10px] text-blue-400 font-mono animate-pulse">● NEURAL LINK ACTIVE</div>
       </header>
 
-      {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Panel - Chart and Controls */}
-        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-          {/* Chart Area */}
-          <div className="flex-1 relative min-h-[300px] lg:min-h-0">
-            {TIMEFRAMES.map((tf) => (
-              <div
-                key={tf.value}
-                className={`absolute inset-0 ${
-                  activeTimeframe === tf.value ? 'block' : 'hidden'
-                }`}
-              >
-                <TradingChart
-                  timeframe={tf.value}
-                  isActive={activeTimeframe === tf.value}
-                  position={position}
-                  onPriceUpdate={handlePriceUpdate}
-                  onHuellaChange={(active) => handleHuellaChange(active, tf.value)}
-                  onDirectionChange={(dir) => handleDirectionChange(dir, tf.value)}
-                  isRayoDorado={isRayoDorado && tf.value === '1m'}
-                  candleDirection={candleDirection}
-                />
+      <main className="flex-1 relative">
+        <div id="tv_chart" ref={container} className="absolute inset-0" />
+
+        <div className="absolute bottom-6 right-6 z-[1000]">
+          {isChatOpen && (
+            <div className="w-80 h-[450px] bg-[#161a1e]/95 border border-[#f0b90b]/30 rounded-3xl mb-4 flex flex-col shadow-2xl overflow-hidden backdrop-blur-md">
+              <div className="p-3 bg-[#f0b90b] text-black font-black text-[10px] uppercase flex justify-between">
+                <span>Core: Gemini 1.5 Flash</span>
+                <X size={14} className="cursor-pointer" onClick={() => setIsChatOpen(false)} />
               </div>
-            ))}
-          </div>
-
-          {/* Operations Console - Sidebar on desktop, bottom on mobile */}
-          <div className="lg:w-80 border-t lg:border-t-0 lg:border-l border-border overflow-y-auto">
-            <OperationsConsole
-              currentPrice={currentPrice}
-              isHuellaActive={isHuellaActive}
-              isRayoDorado={isRayoDorado}
-              onStartHunt={handleStartHunt}
-              onClosePosition={handleClosePosition}
-              position={position}
-            />
-          </div>
+              <div className="flex-1 p-4 overflow-y-auto text-[11px] space-y-3 bg-black/40 scrollbar-hide">
+                {chatHistory.map((m, i) => (
+                  <div key={i} className={m.role === 'bot' ? 'text-zinc-300 border-l border-blue-500 pl-2' : 'text-[#f0b90b] font-bold text-right uppercase'}>
+                    {m.text}
+                  </div>
+                ))}
+                {isLoading && <div className="text-blue-400 animate-pulse text-[10px]">ANALIZANDO FLUJO DE DATOS...</div>}
+              </div>
+              <div className="p-3 border-t border-zinc-800 flex gap-2">
+                <input
+                  value={chatInput}
+                  onChange={e => setChatInput(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleSend()}
+                  className="bg-zinc-900 flex-1 p-2 text-[11px] outline-none rounded border border-zinc-800 focus:border-blue-500"
+                  placeholder="Comando..."
+                />
+                <button onClick={handleSend} className="bg-blue-600 p-2 rounded text-white hover:bg-blue-500">
+                  <Send size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+          <button onClick={() => setIsChatOpen(!isChatOpen)} className="p-4 rounded-full bg-blue-600 text-white shadow-lg hover:scale-105 transition-transform">
+            <Bot size={28} />
+          </button>
         </div>
-
-        {/* Right Panel - AI Chat */}
-        <NikimaruChat
-          currentPrice={currentPrice}
-          isHuellaActive={isHuellaActive}
-          timeframe={activeTimeframe}
-        />
-      </div>
-
-      {/* Floating Action Button for Mobile */}
-      <button
-        onClick={() => {
-          if (!position && currentPrice > 0) {
-            const stopLossPercent = 1;
-            const riskAmount = 80 - 0.80;
-            const stopLossDistance = currentPrice * (stopLossPercent / 100);
-            const lotSize = Math.floor((riskAmount / stopLossDistance) * 1000) / 1000;
-            const sl = currentPrice - stopLossDistance;
-            const tp = currentPrice + (stopLossDistance * 2);
-
-            handleStartHunt({
-              entryPrice: currentPrice,
-              stopLoss: sl,
-              takeProfit: tp,
-              quantity: lotSize,
-              side: 'LONG',
-              isBreakEven: false,
-            });
-          }
-        }}
-        disabled={!!position}
-        className={`fixed bottom-6 right-6 w-16 h-16 rounded-full flex items-center justify-center shadow-lg transition-all lg:hidden z-50 ${
-          isRayoDorado && !position
-            ? 'bg-gold animate-pulse-gold'
-            : isHuellaActive && !position
-            ? 'bg-gold/90'
-            : 'bg-gold/60'
-        } ${position ? 'opacity-50 cursor-not-allowed' : 'hover:scale-110 active:scale-95'}`}
-      >
-        <Zap className="w-6 h-6 text-black" />
-      </button>
+      </main>
     </div>
   );
 }
