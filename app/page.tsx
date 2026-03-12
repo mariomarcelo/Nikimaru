@@ -1,268 +1,189 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
-import { Zap, Clock } from 'lucide-react';
-import { TradingChart } from '@/components/trading-chart';
-import { OperationsConsole } from '@/components/operations-console';
-import { NikimaruChat } from '@/components/nikimaru-chat';
-import type { TimeFrame, Position, CandleDirection } from '@/lib/types';
+import { useEffect, useRef, useState } from 'react';
+import { Zap, Bot, Send, X, Eye, Camera } from 'lucide-react';
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const TIMEFRAMES: { value: TimeFrame; label: string }[] = [
-  { value: '1h', label: '1H' },
-  { value: '15m', label: '15M' },
-  { value: '1m', label: '1M' },
-];
+// --- PROTOCOLO GEMINI (GRATIS Y CON VISIÓN) ---
+const GEMINI_KEY = "AIzaSyA7GR9DsQknVPrUTkD6flepYGQTOUFRd10";
+const genAI = new GoogleGenerativeAI(GEMINI_KEY);
 
-export default function NikimaruApp() {
-  const [activeTimeframe, setActiveTimeframe] = useState<TimeFrame>('1m');
-  const [currentPrice, setCurrentPrice] = useState<number>(0);
-  const [isHuellaActive, setIsHuellaActive] = useState(false);
-  const [position, setPosition] = useState<Position | null>(null);
-  
-  // Track HUELLA status per timeframe for multi-timeframe analysis
-  const [huella1H, setHuella1H] = useState(false);
-  const [huella1M, setHuella1M] = useState(false);
-  
-  // Track candle direction for directional illumination
-  const [candleDirection, setCandleDirection] = useState<CandleDirection>('NEUTRAL');
-  
-  // Flash message state
-  const [showFlashMessage, setShowFlashMessage] = useState(false);
-  const [lastFlashDirection, setLastFlashDirection] = useState<CandleDirection | null>(null);
-  
-  // RAYO DORADO: Definitive signal when 1M HUELLA is active
-  // Major trend confirmation comes from 1H EMA
-  const isRayoDorado = huella1M && activeTimeframe === '1m';
+export default function NikimaruVision() {
+  const [chatHistory, setChatHistory] = useState([{ role: 'bot', text: 'SISTEMA_VIVO: Sincronización de Sesiones (NY/LDN/ASIA) Activa.' }]);
+  const [chatInput, setChatInput] = useState('');
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [showLog, setShowLog] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Handle price updates from chart
-  const handlePriceUpdate = useCallback((price: number) => {
-    setCurrentPrice(price);
+  const [marketData, setMarketData] = useState({ price: 0, volume: 0, change: 0 });
+  const [precioEntrada, setPrecioEntrada] = useState(null);
+  const [rawLog, setRawLog] = useState([]);
+  const [alerta, setAlerta] = useState({ tipo: null, msg: "" });
+
+  const [position, setPosition] = useState({ x: 24, y: 24 });
+  const isDragging = useRef(false);
+
+  // FUNCIÓN PARA OBTENER SESIÓN ACTUAL (Basado en Argentina GMT-3)
+  const getSession = () => {
+    const hour = new Date().toLocaleTimeString('en-GB', {
+      timeZone: 'America/Argentina/Buenos_Aires',
+      hour: '2-digit', hour12: false
+    });
+    const h = parseInt(hour);
+    if (h >= 4 && h < 11) return "LONDRES (London)";
+    if (h >= 9 && h < 18) return "NUEVA YORK (NY)";
+    if (h >= 20 || h < 5) return "ASIA / TOKYO";
+    return "MERCADO LENTO / TRASLAPE";
+  };
+
+  // 1. WEBSOCKET CON HORA ARGENTINA
+  useEffect(() => {
+    const ws = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@ticker');
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      const currentPrice = parseFloat(data.c);
+      const currentVol = parseFloat(data.v);
+      setMarketData({ price: currentPrice, volume: Math.round(currentVol), change: parseFloat(data.P) });
+
+      const now = new Date();
+      const timestamp = now.toLocaleTimeString('en-GB', {
+        timeZone: 'America/Argentina/Buenos_Aires',
+        hour: '2-digit', minute: '2-digit', second: '2-digit'
+      });
+
+      setRawLog(prev => [`[${timestamp}] $${currentPrice.toFixed(2)}`, ...prev].slice(0, 30));
+
+      if (parseFloat(data.P) < -1.2 && currentVol > 40000) setAlerta({ tipo: 'LONG', msg: "BARRIDO" });
+      else if (parseFloat(data.P) > 1.5 && currentVol > 50000) setAlerta({ tipo: 'SHORT', msg: "DISTRIBUCIÓN" });
+    };
+    return () => ws.close();
   }, []);
 
-  // Handle HUELLA status changes per timeframe
-  const handleHuellaChange = useCallback((active: boolean, tf: TimeFrame) => {
-    setIsHuellaActive(active);
-    if (tf === '1h') {
-      setHuella1H(active);
-    } else if (tf === '1m') {
-      setHuella1M(active);
-    }
+  // 2. TRADINGVIEW
+  useEffect(() => {
+    const script = document.createElement("script");
+    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+    script.type = "text/javascript";
+    script.async = true;
+    script.innerHTML = JSON.stringify({
+      "autosize": true, "symbol": "BINANCE:BTCUSDT", "interval": "1", "theme": "dark", "style": "1", "locale": "es",
+      "enable_publishing": false, "hide_top_toolbar": false, "container_id": "tv_main_phantom"
+    });
+    const container = document.getElementById('tv_main_phantom');
+    if (container) { container.innerHTML = ''; container.appendChild(script); }
   }, []);
 
-  // Handle candle direction changes
-  const handleDirectionChange = useCallback((direction: CandleDirection, tf: TimeFrame) => {
-    if (tf === activeTimeframe) {
-      setCandleDirection(direction);
-    }
-  }, [activeTimeframe]);
-
-  // Handle position creation
-  const handleStartHunt = useCallback((newPosition: Position) => {
-    setPosition(newPosition);
+  // 3. DRAG LOGIC
+  useEffect(() => {
+    const handleMouseMove = (e) => {
+      if (!isDragging.current) return;
+      setPosition({ x: window.innerWidth - e.clientX - 25, y: window.innerHeight - e.clientY - 25 });
+    };
+    const handleMouseUp = () => { isDragging.current = false; };
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
   }, []);
 
-  // Handle position close
-  const handleClosePosition = useCallback(() => {
-    setPosition(null);
-  }, []);
+  const hablarIA = async (mensaje) => {
+    setIsLoading(true);
+    const sesionActual = getSession();
+    const horaActual = new Date().toLocaleTimeString('en-GB', { timeZone: 'America/Argentina/Buenos_Aires' });
 
-  // Auto Break-Even logic
-  useEffect(() => {
-    if (!position || position.isBreakEven || currentPrice <= 0) return;
+    try {
+      const pnl = precioEntrada ? (((marketData.price - precioEntrada) / precioEntrada) * 100).toFixed(2) : "0";
+      const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${GROQ_KEY}` },
+        body: JSON.stringify({
+          model: "llama-3.3-70b-versatile",
+          messages: [
+            {
+              role: "system",
+              content: `Eres Nikimaru. Experto en Trading. UBICACIÓN: Argentina (GMT-3). HORA ACTUAL: ${horaActual}. SESIÓN: ${sesionActual}. Si el usuario pregunta por la sesión, responde basado estrictamente en estos datos. Responde corto y técnico.`
+            },
+            { role: "user", content: `CONTEXTO: BTC=${marketData.price}, PNL=${pnl}%. Msg: ${mensaje}` }
+          ],
+          temperature: 0.1
+        })
+      });
+      const resData = await response.json();
+      setChatHistory(prev => [...prev, { role: 'bot', text: resData.choices[0].message.content }]);
+    } catch (e) { console.error("IA Offline"); }
+    finally { setIsLoading(false); }
+  };
 
-    const entryPrice = position.entryPrice;
-    const stopLoss = position.stopLoss;
-    const takeProfit = position.takeProfit;
-
-    // Calculate 1:1 ratio price
-    const riskDistance = Math.abs(entryPrice - stopLoss);
-    let breakEvenTrigger: number;
-
-    if (position.side === 'LONG') {
-      breakEvenTrigger = entryPrice + riskDistance;
-      
-      if (currentPrice >= breakEvenTrigger) {
-        setPosition({
-          ...position,
-          stopLoss: entryPrice,
-          isBreakEven: true,
-        });
-      }
-    } else {
-      breakEvenTrigger = entryPrice - riskDistance;
-      
-      if (currentPrice <= breakEvenTrigger) {
-        setPosition({
-          ...position,
-          stopLoss: entryPrice,
-          isBreakEven: true,
-        });
-      }
-    }
-  }, [currentPrice, position]);
-
-  // Show flash message when RAYO DORADO activates with direction
-  useEffect(() => {
-    if (isRayoDorado && candleDirection !== 'NEUTRAL' && candleDirection !== lastFlashDirection) {
-      setShowFlashMessage(true);
-      setLastFlashDirection(candleDirection);
-      
-      // Auto-hide after 2 seconds
-      const timer = setTimeout(() => {
-        setShowFlashMessage(false);
-      }, 2000);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [isRayoDorado, candleDirection, lastFlashDirection]);
-
-  // Reset flash direction when RAYO DORADO deactivates
-  useEffect(() => {
-    if (!isRayoDorado) {
-      setLastFlashDirection(null);
-    }
-  }, [isRayoDorado]);
-
-  // Check if position hit SL or TP
-  useEffect(() => {
-    if (!position || currentPrice <= 0) return;
-
-    if (position.side === 'LONG') {
-      if (currentPrice <= position.stopLoss) {
-        alert(position.isBreakEven ? 'Break Even hit!' : 'Stop Loss hit!');
-        setPosition(null);
-      } else if (currentPrice >= position.takeProfit) {
-        alert('Take Profit hit! +$160 profit!');
-        setPosition(null);
-      }
-    } else {
-      if (currentPrice >= position.stopLoss) {
-        alert(position.isBreakEven ? 'Break Even hit!' : 'Stop Loss hit!');
-        setPosition(null);
-      } else if (currentPrice <= position.takeProfit) {
-        alert('Take Profit hit! +$160 profit!');
-        setPosition(null);
-      }
-    }
-  }, [currentPrice, position]);
+  const handleSend = () => {
+    if (!chatInput.trim() || isLoading) return;
+    setChatHistory(prev => [...prev, { role: 'user', text: chatInput }]);
+    hablarIA(chatInput);
+    setChatInput('');
+  };
 
   return (
-    <div className="min-h-screen h-screen bg-background flex flex-col overflow-hidden">
-      {/* Header */}
-      <header className="flex items-center justify-between px-4 py-3 border-b border-border bg-card">
+    <div className="h-screen w-screen bg-[#05070a] text-white flex flex-col font-mono italic overflow-hidden select-none">
+
+      <header className={`h-10 border-b flex items-center px-6 justify-between z-50 ${alerta.tipo ? 'bg-red-600 animate-pulse' : 'bg-[#0b0e11] border-zinc-800'}`}>
+        <div className="flex items-center gap-2 font-black text-[10px] uppercase">
+          <Radio size={14} className={alerta.tipo ? 'text-white' : 'text-red-600 animate-pulse'} />
+          NIKIMARU_V4.1
+        </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <Zap className="w-6 h-6 text-gold" />
-            <h1 className="text-lg font-bold text-foreground">NIKIMARU</h1>
-          </div>
-          <span className="text-xs text-muted-foreground hidden sm:inline">
-            High-Frequency Trading Terminal
-          </span>
-        </div>
-
-        {/* Timeframe Tabs - Large touch-friendly buttons */}
-        <div className="flex items-center gap-2 bg-secondary rounded-xl p-1.5">
-          {TIMEFRAMES.map((tf) => (
-            <button
-              key={tf.value}
-              onClick={() => setActiveTimeframe(tf.value)}
-              className={`min-w-[56px] px-4 py-3 text-sm font-bold rounded-lg transition-all touch-manipulation ${
-                activeTimeframe === tf.value
-                  ? 'bg-gold text-black shadow-lg shadow-gold/30'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary/80 active:scale-95'
-              }`}
-            >
-              {tf.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <Clock className="w-4 h-4" />
-          <span className="hidden sm:inline">March 7, 2026</span>
+          <span className="text-[9px] bg-zinc-800 px-2 py-0.5 rounded text-zinc-400 flex items-center gap-1"><Clock size={10} /> {getSession()}</span>
+          <span className="text-green-400 font-bold text-xs">${marketData.price.toLocaleString()}</span>
         </div>
       </header>
 
-      {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Panel - Chart and Controls */}
-        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
-          {/* Chart Area */}
-          <div className="flex-1 relative min-h-[300px] lg:min-h-0">
-            {TIMEFRAMES.map((tf) => (
-              <div
-                key={tf.value}
-                className={`absolute inset-0 ${
-                  activeTimeframe === tf.value ? 'block' : 'hidden'
-                }`}
-              >
-                <TradingChart
-                  timeframe={tf.value}
-                  isActive={activeTimeframe === tf.value}
-                  position={position}
-                  onPriceUpdate={handlePriceUpdate}
-                  onHuellaChange={(active) => handleHuellaChange(active, tf.value)}
-                  onDirectionChange={(dir) => handleDirectionChange(dir, tf.value)}
-                  isRayoDorado={isRayoDorado && tf.value === '1m'}
-                  candleDirection={candleDirection}
-                />
+      <main className="flex-1 flex relative overflow-hidden">
+
+        <aside className={`${showLog ? 'w-40' : 'w-0'} transition-all duration-300 bg-black/95 border-r border-zinc-800 flex flex-col relative z-40`}>
+          <button onClick={() => setShowLog(!showLog)} className="absolute -right-6 top-1/2 -translate-y-1/2 bg-zinc-800 p-1 rounded-r border border-zinc-700 text-zinc-400">
+            {showLog ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
+          </button>
+          {showLog && (
+            <div className="p-2 flex flex-col h-full overflow-hidden">
+              <div className="text-[8px] text-[#f0b90b] mb-2 border-b border-zinc-800 pb-1 flex items-center gap-1 uppercase font-bold">
+                <Activity size={10} /> Live_Feed_AR
               </div>
-            ))}
-          </div>
+              <div className="flex-1 overflow-y-auto space-y-1 opacity-60 scrollbar-hide">
+                {rawLog.map((log, i) => <div key={i} className="text-[7px] leading-tight whitespace-nowrap">{log}</div>)}
+              </div>
+            </div>
+          )}
+        </aside>
 
-          {/* Operations Console - Sidebar on desktop, bottom on mobile */}
-          <div className="lg:w-80 border-t lg:border-t-0 lg:border-l border-border overflow-y-auto">
-            <OperationsConsole
-              currentPrice={currentPrice}
-              isHuellaActive={isHuellaActive}
-              isRayoDorado={isRayoDorado}
-              onStartHunt={handleStartHunt}
-              onClosePosition={handleClosePosition}
-              position={position}
-            />
-          </div>
+        <section className="flex-1 bg-black relative">
+          <div id="tv_main_phantom" className="w-full h-full" />
+        </section>
+
+        <div className="absolute z-[1000] flex flex-col items-end" style={{ bottom: `${position.y}px`, right: `${position.x}px` }}>
+          {isChatOpen && (
+            <div className="w-[260px] h-[320px] bg-[#0b0e11]/98 border border-[#f0b90b]/40 rounded-xl flex flex-col shadow-2xl backdrop-blur-xl mb-3 overflow-hidden border-b-4 border-b-[#f0b90b]">
+              <div onMouseDown={() => { isDragging.current = true; }} className="p-2 bg-[#f0b90b] text-black font-black text-[8px] flex justify-between items-center cursor-move">
+                <span>TERMINAL_IA</span>
+                <button onClick={() => setIsChatOpen(false)}><X size={14} /></button>
+              </div>
+              <div className="flex-1 p-3 overflow-y-auto text-[9px] space-y-3 scrollbar-hide">
+                {chatHistory.map((m, i) => (
+                  <div key={i} className={m.role === 'bot' ? 'text-zinc-400 border-l-2 border-[#f0b90b] pl-2' : 'text-[#f0b90b] text-right font-bold'}>
+                    {m.text}
+                  </div>
+                ))}
+              </div>
+              <div className="p-2 bg-zinc-900 flex gap-1 border-t border-zinc-800">
+                <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} className="bg-black flex-1 p-1.5 text-[9px] outline-none rounded border border-zinc-700 text-green-400" placeholder="Comando..." />
+                <button onClick={handleSend} className="text-[#f0b90b]"><Send size={14} /></button>
+              </div>
+            </div>
+          )}
+          <button onMouseDown={() => { isDragging.current = true; }} onClick={() => !isDragging.current && setIsChatOpen(!isChatOpen)} className="p-4 rounded-full bg-[#f0b90b] text-black shadow-2xl border-2 border-black cursor-move">
+            {isChatOpen ? <X size={20} /> : <MessageSquare size={20} />}
+          </button>
         </div>
-
-        {/* Right Panel - AI Chat */}
-        <NikimaruChat
-          currentPrice={currentPrice}
-          isHuellaActive={isHuellaActive}
-          timeframe={activeTimeframe}
-        />
-      </div>
-
-      {/* Floating Action Button for Mobile */}
-      <button
-        onClick={() => {
-          if (!position && currentPrice > 0) {
-            const stopLossPercent = 1;
-            const riskAmount = 80 - 0.80;
-            const stopLossDistance = currentPrice * (stopLossPercent / 100);
-            const lotSize = Math.floor((riskAmount / stopLossDistance) * 1000) / 1000;
-            const sl = currentPrice - stopLossDistance;
-            const tp = currentPrice + (stopLossDistance * 2);
-
-            handleStartHunt({
-              entryPrice: currentPrice,
-              stopLoss: sl,
-              takeProfit: tp,
-              quantity: lotSize,
-              side: 'LONG',
-              isBreakEven: false,
-            });
-          }
-        }}
-        disabled={!!position}
-        className={`fixed bottom-6 right-6 w-16 h-16 rounded-full flex items-center justify-center shadow-lg transition-all lg:hidden z-50 ${
-          isRayoDorado && !position
-            ? 'bg-gold animate-pulse-gold'
-            : isHuellaActive && !position
-            ? 'bg-gold/90'
-            : 'bg-gold/60'
-        } ${position ? 'opacity-50 cursor-not-allowed' : 'hover:scale-110 active:scale-95'}`}
-      >
-        <Zap className="w-6 h-6 text-black" />
-      </button>
+      </main>
     </div>
   );
 }
