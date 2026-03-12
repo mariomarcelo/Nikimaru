@@ -49,7 +49,7 @@ export function OperationsConsole({
     const riskAmount = MAX_LOSS - COMMISSION;
     const stopLossDistance = currentPrice * (stopLossPercent / 100);
     const lotSize = riskAmount / stopLossDistance;
-    
+
     return Math.floor(lotSize * 1000) / 1000;
   }, [currentPrice, stopLossPercent]);
 
@@ -64,7 +64,7 @@ export function OperationsConsole({
     if (!currentPrice) return { sl: 0, tp: 0 };
 
     const slDistance = currentPrice * (stopLossPercent / 100);
-    
+
     if (side === 'LONG') {
       const sl = currentPrice - slDistance;
       const tp = currentPrice + (slDistance * 2); // 1:2 RR
@@ -96,9 +96,9 @@ export function OperationsConsole({
 
   // Format price display
   const formatPrice = (price: number) => {
-    return price.toLocaleString('en-US', { 
-      minimumFractionDigits: 2, 
-      maximumFractionDigits: 2 
+    return price.toLocaleString('en-US', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
     });
   };
 
@@ -110,23 +110,22 @@ export function OperationsConsole({
           <Target className="w-4 h-4 text-gold" />
           OPERATIONS CONSOLE
         </h3>
-        <div 
-          className={`px-2 py-1.5 rounded-lg text-xs font-bold transition-all ${
-            isRayoDorado && candleDirection === 'LONG'
+        <div
+          className={`px-2 py-1.5 rounded-lg text-xs font-bold transition-all ${isRayoDorado && candleDirection === 'LONG'
               ? 'bg-bull/30 text-bull border border-bull/50 shadow-lg shadow-bull/30'
               : isRayoDorado && candleDirection === 'SHORT'
-              ? 'bg-bear/30 text-bear border border-bear/50 shadow-lg shadow-bear/30'
-              : isRayoDorado
-              ? 'bg-gold/30 text-gold animate-pulse-gold border border-gold/50'
-              : isHuellaActive 
-              ? 'bg-gold/20 text-gold animate-glow-gold' 
-              : 'bg-secondary text-muted-foreground'
-          }`}
+                ? 'bg-bear/30 text-bear border border-bear/50 shadow-lg shadow-bear/30'
+                : isRayoDorado
+                  ? 'bg-gold/30 text-gold animate-pulse-gold border border-gold/50'
+                  : isHuellaActive
+                    ? 'bg-gold/20 text-gold animate-glow-gold'
+                    : 'bg-secondary text-muted-foreground'
+            }`}
         >
-          {isRayoDorado && candleDirection === 'LONG' ? 'HUNT LONG' 
+          {isRayoDorado && candleDirection === 'LONG' ? 'HUNT LONG'
             : isRayoDorado && candleDirection === 'SHORT' ? 'HUNT SHORT'
-            : isRayoDorado ? 'ESPERANDO'
-            : isHuellaActive ? 'HUELLA ACTIVE' : 'HUELLA INACTIVE'}
+              : isRayoDorado ? 'ESPERANDO'
+                : isHuellaActive ? 'HUELLA ACTIVE' : 'HUELLA INACTIVE'}
         </div>
       </div>
 
@@ -134,21 +133,19 @@ export function OperationsConsole({
       <div className="flex gap-2">
         <button
           onClick={() => setSide('LONG')}
-          className={`flex-1 py-2 rounded-md text-sm font-bold transition-all ${
-            side === 'LONG'
+          className={`flex-1 py-2 rounded-md text-sm font-bold transition-all ${side === 'LONG'
               ? 'bg-bull text-black'
               : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
-          }`}
+            }`}
         >
           LONG
         </button>
         <button
           onClick={() => setSide('SHORT')}
-          className={`flex-1 py-2 rounded-md text-sm font-bold transition-all ${
-            side === 'SHORT'
+          className={`flex-1 py-2 rounded-md text-sm font-bold transition-all ${side === 'SHORT'
               ? 'bg-bear text-white'
               : 'bg-secondary text-muted-foreground hover:bg-secondary/80'
-          }`}
+            }`}
         >
           SHORT
         </button>
@@ -207,15 +204,14 @@ export function OperationsConsole({
       </div>
 
       {/* Risk Calculation Display - Border illuminates based on direction */}
-      <div className={`p-3 bg-secondary/50 rounded-lg space-y-2 border-2 transition-all duration-300 ${
-        isRayoDorado && candleDirection === 'LONG'
+      <div className={`p-3 bg-secondary/50 rounded-lg space-y-2 border-2 transition-all duration-300 ${isRayoDorado && candleDirection === 'LONG'
           ? 'border-bull shadow-lg shadow-bull/20'
           : isRayoDorado && candleDirection === 'SHORT'
-          ? 'border-bear shadow-lg shadow-bear/20'
-          : isRayoDorado
-          ? 'border-gold/50'
-          : 'border-transparent'
-      }`}>
+            ? 'border-bear shadow-lg shadow-bear/20'
+            : isRayoDorado
+              ? 'border-gold/50'
+              : 'border-transparent'
+        }`}>
         <div className="flex justify-between text-xs">
           <span className="text-muted-foreground">Entry Price:</span>
           <span className="text-gold font-bold">${formatPrice(currentPrice)}</span>
@@ -257,23 +253,22 @@ export function OperationsConsole({
         <button
           onClick={handleStartHunt}
           disabled={!currentPrice || calculatedLotSize <= 0}
-          className={`relative w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition-all touch-manipulation active:scale-95 ${
-            isRayoDorado && candleDirection === 'LONG'
+          className={`relative w-full py-4 rounded-xl font-bold text-lg flex items-center justify-center gap-2 transition-all touch-manipulation active:scale-95 ${isRayoDorado && candleDirection === 'LONG'
               ? 'bg-bull text-white shadow-lg shadow-bull/40'
               : isRayoDorado && candleDirection === 'SHORT'
-              ? 'bg-bear text-white shadow-lg shadow-bear/40'
-              : isRayoDorado
-              ? 'bg-gold text-black animate-pulse-gold shadow-lg shadow-gold/40'
-              : isHuellaActive
-              ? 'bg-gold text-black'
-              : 'bg-gold/70 text-black hover:bg-gold'
-          } disabled:opacity-50 disabled:cursor-not-allowed`}
+                ? 'bg-bear text-white shadow-lg shadow-bear/40'
+                : isRayoDorado
+                  ? 'bg-gold text-black animate-pulse-gold shadow-lg shadow-gold/40'
+                  : isHuellaActive
+                    ? 'bg-gold text-black'
+                    : 'bg-gold/70 text-black hover:bg-gold'
+            } disabled:opacity-50 disabled:cursor-not-allowed`}
         >
           <Zap className="w-5 h-5" />
-          {isRayoDorado && candleDirection === 'LONG' ? 'HUNT LONG' 
+          {isRayoDorado && candleDirection === 'LONG' ? 'HUNT LONG'
             : isRayoDorado && candleDirection === 'SHORT' ? 'HUNT SHORT'
-            : isRayoDorado ? 'ESPERANDO DIRECCION'
-            : 'START HUNT'}
+              : isRayoDorado ? 'ESPERANDO DIRECCION'
+                : 'START HUNT'}
         </button>
       ) : (
         <div className="space-y-2">
