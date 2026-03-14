@@ -1,2 +1,0 @@
-# Nikimaru
-trading con ia
