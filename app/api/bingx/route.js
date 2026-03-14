@@ -8,23 +8,39 @@ export async function POST(request) {
 
     const API_KEY = process.env.BINGX_API_KEY;
     const SECRET_KEY = process.env.BINGX_SECRET_KEY;
-    const URL_BASE = "https://open-api-vst.bingx.com"; // URL DEMO VST
 
+    // URL para cuenta DEMO VST
+    const URL_BASE = "https://open-api-vst.bingx.com";
+
+    // 1. Definir parámetros (Aseguramos que sean números donde corresponde)
     const params = {
       symbol: symbol || "BTC-USDT",
-      side: side, // "BUY" o "SELL"
+      side: side.toUpperCase(), // Asegurar que sea BUY o SELL
       positionSide: "BOTH",
       type: "MARKET",
-      quantity: margin, // En VST suele ser cantidad de moneda o nominal
-      leverage: leverage,
+      quantity: Number(margin),
+      leverage: Number(leverage),
       timestamp: Date.now(),
+      recvWindow: 5000, // Margen de 5 segundos para evitar el error de tiempo
     };
 
-    // Crear Query String y Firma
-    const queryString = Object.keys(params).sort().map(k => `${k}=${params[k]}`).join('&');
-    const signature = crypto.createHmac('sha256', SECRET_KEY).update(queryString).digest('hex');
+    // 2. Crear el Query String ordenado alfabéticamente
+    const queryString = Object.keys(params)
+      .sort()
+      .map(key => `${key}=${params[key]}`)
+      .join('&');
 
-    const response = await fetch(`${URL_BASE}/openApi/swap/v2/trade/order?${queryString}&signature=${signature}`, {
+    // 3. Generar la firma HMAC SHA256
+    const signature = crypto
+      .createHmac('sha256', SECRET_KEY)
+      .update(queryString)
+      .digest('hex');
+
+    // 4. Construir la URL completa
+    const fullUrl = `${URL_BASE}/openApi/swap/v2/trade/order?${queryString}&signature=${signature}`;
+
+    // 5. Realizar la petición
+    const response = await fetch(fullUrl, {
       method: 'POST',
       headers: {
         'X-BX-APIKEY': API_KEY,
@@ -33,9 +49,14 @@ export async function POST(request) {
     });
 
     const data = await response.json();
+
+    // Log para depuración en Vercel
+    console.log("Respuesta de BingX:", data);
+
     return NextResponse.json(data);
 
   } catch (error) {
-    return NextResponse.json({ error: 'Error de red en el servidor' }, { status: 500 });
+    console.error("Error en API Route:", error);
+    return NextResponse.json({ error: 'Error interno del servidor', details: error.message }, { status: 500 });
   }
 }
