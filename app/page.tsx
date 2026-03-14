@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { Brain, Cpu, Bot, History, Globe, ShieldCheck, XCircle, Terminal, Settings2 } from 'lucide-react';
+import { Brain, Cpu, Bot, History, Globe, ShieldCheck, XCircle, Settings2 } from 'lucide-react';
 
 export default function NikimaruV140BingX() {
   const canvasRef = useRef(null);
@@ -14,11 +14,11 @@ export default function NikimaruV140BingX() {
   const [isAuto, setIsAuto] = useState(false);
   const [trades, setTrades] = useState([]);
 
-  // CONFIGURACIÓN DE TRADING
+  // CONFIGURACIÓN DE TRADING (VINCULADO A LA UI)
   const [leverage, setLeverage] = useState(20);
   const [tradeAmount, setTradeAmount] = useState(10); // Margen en VST
 
-  // --- MOTOR DE DATOS REALES (Binance) ---
+  // --- MOTOR DE DATOS REALES (BINANCE) ---
   useEffect(() => {
     fetch(`https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${tf}&limit=80`)
       .then(res => res.json())
@@ -41,11 +41,11 @@ export default function NikimaruV140BingX() {
     return () => ws.close();
   }, [tf]);
 
-  // --- EJECUCIÓN REAL EN BINGX VST ---
+  // --- EJECUCIÓN REAL EN BINGX VST VIA SERVERLESS ---
   const handleBingXTrade = async (side) => {
     if (isTrading) return;
     setIsTrading(true);
-    setAiReport(`SNC_EXEC: Enviando ${side} a BingX...`);
+    setAiReport(`SNC_EXEC: Enviando ${side === 'BUY' ? 'LONG' : 'SHORT'} a BingX...`);
 
     try {
       const response = await fetch('/api/bingx', {
@@ -71,49 +71,51 @@ export default function NikimaruV140BingX() {
         setTrades(prev => [newTrade, ...prev].slice(0, 10));
         setAiReport(`ORDEN EXITOSA: ID ${data.data.orderId}`);
       } else {
+        // Captura el error real de BingX (ej: 401, Invalid Signature)
         setAiReport(`BINGX_ERROR: ${data.msg || 'Revisar API Keys'}`);
+        console.error("Error de BingX:", data);
       }
     } catch (error) {
-      setAiReport("SNC_CRITICAL: Error de red con la API Route");
+      setAiReport("SNC_CRITICAL: Error de conexión con Vercel");
     } finally {
+      // Cooldown de 2 segundos para evitar spam de órdenes
       setTimeout(() => setIsTrading(false), 2000);
     }
   };
 
-  // --- IA AUTÓNOMA (SNC - Neural Engine) ---
+  // --- IA AUTÓNOMA (SNC NEURAL ENGINE) ---
   useEffect(() => {
     if (!isAuto || candles.length < 20) return;
 
     const brainInterval = setInterval(() => {
       if (isTrading) return;
 
-      // 1. Cálculo de RSI (14 periodos)
-      const changes = candles.slice(-14).map((c, i, arr) => i > 0 ? c.close - arr[i - 1].close : 0);
-      const gains = changes.filter(v => v > 0).reduce((a, b) => a + b, 0);
-      const losses = Math.abs(changes.filter(v => v < 0).reduce((a, b) => a + b, 0));
-      const rsi = 100 - (100 / (1 + (gains / (losses || 1))));
+      // Cálculo de RSI (14 periodos)
+      const last15 = candles.slice(-15);
+      let gains = 0, losses = 0;
+      for (let i = 1; i < last15.length; i++) {
+        const diff = last15[i].close - last15[i - 1].close;
+        if (diff >= 0) gains += diff; else losses += Math.abs(diff);
+      }
+      const rs = gains / (losses || 1);
+      const rsi = 100 - (100 / (1 + rs));
 
-      // 2. Análisis de Tendencia (Velas actuales)
-      const lastCandle = candles[candles.length - 1];
-      const isBulla = lastCandle.close > lastCandle.open;
-      const isBear = lastCandle.close < lastCandle.open;
+      setAiReport(`IA_SCAN: RSI ${rsi.toFixed(2)} | ANALIZANDO BLOQUES...`);
 
-      setAiReport(`IA_SCAN: RSI ${rsi.toFixed(2)} | VOL: ESTABLE`);
-
-      // 3. Gatillos de Ejecución
-      if (rsi < 30 && isBulla) {
-        setAiReport("SNC_BRAIN: Sobreventa + Reversión. ¡LONG!");
+      // GATILLOS DE IA (SNC LOGIC)
+      if (rsi < 30) {
+        setAiReport("SNC_BRAIN: SOBREVENTA DETECTADA. ¡LONG!");
         handleBingXTrade('BUY');
-      } else if (rsi > 70 && isBear) {
-        setAiReport("SNC_BRAIN: Sobrecompra + Reversión. ¡SHORT!");
+      } else if (rsi > 70) {
+        setAiReport("SNC_BRAIN: SOBRECOMPRA DETECTADA. ¡SHORT!");
         handleBingXTrade('SELL');
       }
-    }, 3000);
+    }, 5000); // Escaneo cada 5 segundos
 
     return () => clearInterval(brainInterval);
   }, [isAuto, isTrading, candles, tradeAmount, leverage]);
 
-  // --- MOTOR GRÁFICO (Canvas) ---
+  // --- MOTOR GRÁFICO (CANVAS) ---
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
@@ -134,16 +136,7 @@ export default function NikimaruV140BingX() {
 
     ctx.clearRect(0, 0, w, h);
 
-    // Cuadrícula y Precios
-    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
-    for (let i = 0; i <= 4; i++) {
-      const y = pY + (cH / 4) * i;
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(cW, y); ctx.stroke();
-      ctx.fillStyle = '#444'; ctx.font = '8px monospace';
-      ctx.fillText((maxP - (range / 4) * i).toFixed(0), cW + 5, y + 3);
-    }
-
-    // Velas
+    // Velas Japonesas
     candles.forEach((c, i) => {
       const x = (i * stepX) + stepX / 2;
       const isUp = c.close >= c.open;
@@ -168,29 +161,29 @@ export default function NikimaruV140BingX() {
         <div className="flex items-center gap-4">
           <div className="bg-red-600 p-1 rounded text-white animate-pulse"><Cpu size={16} /></div>
           <span className="text-white font-black tracking-tighter text-xs">NIKIMARU_V140_BINGX</span>
-          <button onClick={() => setIsAuto(!isAuto)} className={`flex items-center gap-2 px-3 py-1 rounded border text-[9px] font-black transition-all ${isAuto ? 'bg-red-600 border-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)]' : 'bg-white/5 border-white/10 text-zinc-500'}`}>
+          <button
+            onClick={() => setIsAuto(!isAuto)}
+            className={`flex items-center gap-2 px-3 py-1 rounded border text-[9px] font-black transition-all ${isAuto ? 'bg-red-600 border-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)]' : 'bg-white/5 border-white/10 text-zinc-500'}`}
+          >
             <Bot size={12} /> {isAuto ? 'IA_SNC_ACTIVE' : 'IA_SNC_STANDBY'}
           </button>
         </div>
-        <div className="flex gap-6">
-          <div className="text-right">
-            <p className="text-[7px] text-zinc-600 font-bold">LIVE_BTC_USDT</p>
-            <p className="text-sm font-black text-white tabular-nums">${price.toLocaleString()}</p>
-          </div>
+        <div className="text-right">
+          <p className="text-[7px] text-zinc-600 font-bold">LIVE_BTC_USDT</p>
+          <p className="text-sm font-black text-white tabular-nums">${price.toLocaleString()}</p>
         </div>
       </div>
 
       <div className="flex flex-grow overflow-hidden">
-        {/* PANEL IZQUIERDO: CONFIG & LOG */}
+        {/* PANEL IZQUIERDO */}
         <div className="w-64 border-r border-white/5 p-4 flex flex-col gap-4 bg-[#050505]">
           <div className="p-4 bg-black/60 rounded-xl border border-white/10">
             <div className="flex items-center gap-2 text-red-500 text-[9px] font-black mb-4"><Settings2 size={12} /> PARAMS</div>
-            <label className="text-[8px] text-zinc-500 block">LEVERAGE: {leverage}X</label>
-            <input type="range" min="1" max="125" value={leverage} onChange={(e) => setLeverage(parseInt(e.target.value))} className="w-full h-1 bg-white/10 rounded-lg accent-red-600 mb-4" />
-            <label className="text-[8px] text-zinc-500 block uppercase">Margin (VST)</label>
+            <label className="text-[8px] text-zinc-500 block">APALANCAMIENTO: {leverage}X</label>
+            <input type="range" min="1" max="100" value={leverage} onChange={(e) => setLeverage(parseInt(e.target.value))} className="w-full h-1 bg-white/10 rounded-lg accent-red-600 mb-4" />
+            <label className="text-[8px] text-zinc-500 block uppercase">Margen (VST)</label>
             <input type="number" value={tradeAmount} onChange={(e) => setTradeAmount(parseInt(e.target.value))} className="w-full bg-black border border-white/10 rounded p-2 text-[10px] text-white outline-none focus:border-red-600" />
           </div>
-
           <div className="p-4 bg-black/40 rounded-xl border border-white/5 flex-grow">
             <p className="text-zinc-600 mb-2 font-bold text-[8px] tracking-widest uppercase">System_Intel:</p>
             <p className="text-blue-400 text-[10px] leading-tight normal-case">"{aiReport}"</p>
@@ -200,14 +193,9 @@ export default function NikimaruV140BingX() {
         {/* CENTRO: CHART */}
         <div ref={containerRef} className="flex-grow relative bg-[#020202]">
           <canvas ref={canvasRef} className="absolute inset-0 w-full h-full opacity-60" />
-          <div className="absolute top-4 left-4 flex gap-2">
-            {['1m', '5m', '15m'].map(t => (
-              <button key={t} onClick={() => setTf(t)} className={`px-2 py-0.5 rounded text-[8px] border border-white/10 ${tf === t ? 'bg-white/10 text-white' : ''}`}>{t}</button>
-            ))}
-          </div>
         </div>
 
-        {/* PANEL DERECHO: TRADES LOG */}
+        {/* PANEL DERECHO */}
         <div className="w-72 border-l border-white/5 p-4 flex flex-col gap-4 bg-[#050505]">
           <div className="flex-grow flex flex-col overflow-hidden">
             <div className="flex items-center gap-2 text-[8px] font-black text-zinc-500 mb-4 tracking-widest"><History size={12} /> BINGX_POSITIONS</div>
@@ -216,18 +204,17 @@ export default function NikimaruV140BingX() {
                 <div key={trade.id} className="p-2 bg-white/5 border border-white/5 rounded text-[9px]">
                   <div className="flex justify-between font-black">
                     <span className={trade.type === 'LONG' ? 'text-green-500' : 'text-red-500'}>{trade.type}</span>
-                    <span className="text-zinc-600">ID:{trade.id.toString().slice(-4)}</span>
+                    <span className="text-zinc-600">ID:{trade.id}</span>
                   </div>
-                  <div className="text-zinc-500">ENTRY: ${trade.price}</div>
+                  <div className="text-zinc-500">ENTRADA: ${trade.price}</div>
                 </div>
               ))}
             </div>
           </div>
           <div className="flex gap-2">
-            <button onClick={() => handleBingXTrade('BUY')} disabled={isTrading || isAuto} className="flex-grow py-4 bg-green-500/10 border border-green-500/30 text-green-500 rounded-xl font-black text-[10px] hover:bg-green-500 hover:text-black transition-all disabled:opacity-20">LONG</button>
-            <button onClick={() => handleBingXTrade('SELL')} disabled={isTrading || isAuto} className="flex-grow py-4 bg-red-600/10 border border-red-600/30 text-red-500 rounded-xl font-black text-[10px] hover:bg-red-600 hover:text-white transition-all disabled:opacity-20">SHORT</button>
+            <button onClick={() => handleBingXTrade('BUY')} disabled={isTrading || isAuto} className="flex-grow py-4 bg-green-500/10 border border-green-500/30 text-green-500 rounded-xl font-black text-[10px] hover:bg-green-500 hover:text-black transition-all">LONG</button>
+            <button onClick={() => handleBingXTrade('SELL')} disabled={isTrading || isAuto} className="flex-grow py-4 bg-red-600/10 border border-red-600/30 text-red-500 rounded-xl font-black text-[10px] hover:bg-red-600 hover:text-white transition-all">SHORT</button>
           </div>
-          <button onClick={() => setTrades([])} className="w-full py-2 bg-white/5 border border-white/10 text-zinc-500 rounded-xl font-black text-[8px] flex items-center justify-center gap-2 uppercase"><XCircle size={12} /> Clear_History</button>
         </div>
       </div>
 
@@ -236,10 +223,6 @@ export default function NikimaruV140BingX() {
         <div className="flex gap-4">
           <span className="flex items-center gap-1"><Globe size={10} className="text-green-500" /> BingX_VST_Active</span>
           <span className="flex items-center gap-1"><ShieldCheck size={10} /> Neural_Core_v1.4</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className={`w-1.5 h-1.5 rounded-full ${isAuto ? 'bg-red-500 animate-ping' : 'bg-green-500'}`} />
-          <span>Status: {isAuto ? 'SNC_Scanning' : 'Ready'}</span>
         </div>
       </div>
     </div>
