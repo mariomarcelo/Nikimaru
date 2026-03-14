@@ -1,207 +1,192 @@
 'use client';
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import {
-  Zap, Target, Brain, Radio, Settings, ShieldCheck,
-  Activity, TrendingUp, BarChart3, LineChart, Cpu
-} from 'lucide-react';
+import { Cpu, Target, Brain, Activity, Shield, TrendingUp, Zap } from 'lucide-react';
 
-export default function TerminalNikimaruPro() {
+export default function NikimaruTerminalV3() {
   const canvasRef = useRef(null);
   const [candles, setCandles] = useState([]);
   const [marketData, setMarketData] = useState({ price: 0 });
   const [trade, setTrade] = useState(null);
   const [isAuto, setIsAuto] = useState(false);
-  const [logs, setLogs] = useState(["SISTEMA_V25: Motor de análisis cargado. Sin órdenes activas."]);
-  const [zoom, setZoom] = useState(1);
+  const [logs, setLogs] = useState(["SISTEMA_V3: Motor Neural cargado. Esperando liquidez..."]);
   const [pnlHist, setPnlHist] = useState(0);
 
-  // --- 1. GESTIÓN DE TERMINAL ---
-  const addLog = (msg) => setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev.slice(0, 15)]);
-
-  // --- 2. CEREBRO DE LA IA (Simulación Institucional) ---
-  const aiBrain = useMemo(() => {
-    if (candles.length < 50) return null;
-
-    const last = candles[candles.length - 1];
-    const prev = candles[candles.length - 2];
-    const body = Math.abs(last.close - last.open);
-    const lowWick = Math.min(last.open, last.close) - last.low;
-    const highWick = last.high - Math.max(last.open, last.close);
-
-    // Detección de Bloques de Ordenes (Order Blocks)
-    const isBullishOB = lowWick > body * 2.5 && last.close > prev.close;
-    const isBearishOB = highWick > body * 2.5 && last.close < prev.close;
-
-    if (isAuto && !trade) {
-      if (isBullishOB) executeVirtualTrade('LONG');
-      if (isBearishOB) executeVirtualTrade('SHORT');
-    }
-
-    return { isBullishOB, isBearishOB, body, lowWick, highWick };
-  }, [candles, isAuto, trade]);
-
-  const executeVirtualTrade = (type) => {
-    const entry = marketData.price;
-    const stopDist = entry * 0.005; // 0.5% Stop Loss
-    const targetDist = stopDist * 2.5; // 2.5 RR ratio
-
-    setTrade({
-      type,
-      entry,
-      sl: type === 'LONG' ? entry - stopDist : entry + stopDist,
-      tp: type === 'LONG' ? entry + targetDist : entry - targetDist,
-      time: new Date().toLocaleTimeString()
-    });
-    addLog(`IA_ALERTA: Detectado patrón institucional. Abriendo ${type} en $${entry.toLocaleString()}`);
-  };
-
-  // --- 3. MONITOR DE RIESGO ---
+  // --- 1. LÓGICA DE DIBUJO PROFESIONAL ---
   useEffect(() => {
-    if (!trade) return;
-    const p = marketData.price;
-    const isLong = trade.type === 'LONG';
-    const hitSL = isLong ? p <= trade.sl : p >= trade.sl;
-    const hitTP = isLong ? p >= trade.tp : p <= trade.tp;
+    const canvas = canvasRef.current;
+    if (!canvas || candles.length === 0) return;
 
-    if (hitSL || hitTP) {
-      const profit = (p - trade.entry) * (isLong ? 1 : -1);
-      setPnlHist(prev => prev + profit);
-      addLog(`IA_CIERRE: Posición finalizada. Resultado: ${profit > 0 ? 'PROFIT' : 'LOSS'} ($${profit.toFixed(2)})`);
-      setTrade(null);
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+
+    const w = rect.width;
+    const h = rect.height;
+    const pad = 40;
+
+    // Escalamiento de Precios
+    const minP = Math.min(...candles.map(c => c.low));
+    const maxP = Math.max(...candles.map(c => c.high));
+    const range = (maxP - minP) || 1;
+    const getY = (p) => h - pad - ((p - minP) / range) * (h - 2 * pad);
+    const cW = (w - 2 * pad) / candles.length;
+
+    // Fondo y Cuadrícula
+    ctx.clearRect(0, 0, w, h);
+    ctx.strokeStyle = '#1a1a1a';
+    for (let i = 0; i < 10; i++) {
+      ctx.beginPath(); ctx.moveTo(0, (h / 10) * i); ctx.lineTo(w, (h / 10) * i); ctx.stroke();
     }
-  }, [marketData.price]);
 
-  // --- 4. DATA FEED ---
+    // Dibujo de Velas
+    candles.forEach((c, i) => {
+      const x = pad + i * cW;
+      const isUp = c.close >= c.open;
+      ctx.fillStyle = isUp ? '#22c55e' : '#ef4444';
+      ctx.strokeStyle = isUp ? '#22c55e' : '#ef4444';
+
+      // Mecha
+      ctx.beginPath();
+      ctx.moveTo(x + cW / 2, getY(c.high));
+      ctx.lineTo(x + cW / 2, getY(c.low));
+      ctx.stroke();
+
+      // Cuerpo
+      const top = getY(Math.max(c.open, c.close));
+      const bot = getY(Math.min(c.open, c.close));
+      ctx.fillRect(x + 1, top, cW - 2, Math.max(1, bot - top));
+    });
+
+    // Visualización de Operación Activa (Herramientas de Trading)
+    if (trade) {
+      // Línea de Entrada (Blanca)
+      ctx.setLineDash([5, 5]);
+      ctx.strokeStyle = '#ffffff';
+      ctx.beginPath(); ctx.moveTo(0, getY(trade.entry)); ctx.lineTo(w, getY(trade.entry)); ctx.stroke();
+
+      // Zona de Stop Loss (Roja)
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.1)';
+      if (trade.type === 'LONG') ctx.fillRect(0, getY(trade.sl), w, h - getY(trade.sl));
+      else ctx.fillRect(0, 0, w, getY(trade.sl));
+
+      // Zona de Take Profit (Verde)
+      ctx.fillStyle = 'rgba(34, 197, 94, 0.1)';
+      if (trade.type === 'LONG') ctx.fillRect(0, 0, w, getY(trade.tp));
+      else ctx.fillRect(0, getY(trade.tp), w, h - getY(trade.tp));
+      ctx.setLineDash([]);
+    }
+  }, [candles, trade, marketData.price]);
+
+  // --- 2. IA DE DETECCIÓN (SMART MONEY) ---
+  const aiAnalysis = useMemo(() => {
+    if (candles.length < 2) return "Analizando flujo...";
+    const last = candles[candles.length - 1];
+    const volAvg = candles.reduce((a, b) => a + b.vol, 0) / candles.length;
+
+    if (last.vol > volAvg * 1.5) {
+      return "ALERTA: Volumen institucional detectado. Posible Order Block.";
+    }
+    return "Mercado en equilibrio retail. Esperando barrido.";
+  }, [candles]);
+
+  // --- 3. CONEXIÓN REAL TIEMPO REAL ---
   useEffect(() => {
     const ws = new WebSocket(`wss://stream.binance.com:9443/ws/btcusdt@kline_1m`);
     ws.onmessage = (e) => {
       const d = JSON.parse(e.data);
-      setMarketData({ price: parseFloat(d.k.c) });
+      const price = parseFloat(d.k.c);
+      setMarketData({ price });
       if (d.k.x) {
-        setCandles(prev => [...prev.slice(-100), {
+        setCandles(prev => [...prev.slice(-60), {
           open: parseFloat(d.k.o), high: parseFloat(d.k.h),
-          low: parseFloat(d.k.l), close: parseFloat(d.k.c), vol: parseFloat(d.k.v)
+          low: parseFloat(d.k.l), close: price, vol: parseFloat(d.k.v)
         }]);
       }
     };
-    const fetchHistory = async () => {
-      const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=100`);
-      const d = await res.json();
-      setCandles(d.map(c => ({ open: parseFloat(c[1]), high: parseFloat(c[2]), low: parseFloat(c[3]), close: parseFloat(c[4]), vol: parseFloat(c[5]) })));
-    };
-    fetchHistory();
+    fetch(`https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=60`)
+      .then(r => r.json())
+      .then(d => setCandles(d.map(c => ({
+        open: parseFloat(c[1]), high: parseFloat(c[2]), low: parseFloat(c[3]), close: parseFloat(c[4]), vol: parseFloat(c[5])
+      }))));
     return () => ws.close();
   }, []);
 
+  const openTrade = (type) => {
+    const entry = marketData.price;
+    const sl = type === 'LONG' ? entry * 0.995 : entry * 1.005;
+    const tp = type === 'LONG' ? entry * 1.015 : entry * 0.985;
+    setTrade({ type, entry, sl, tp });
+    setLogs(prev => [`[SISTEMA] ${type} ejecutado en $${entry}`, ...prev]);
+  };
+
   return (
-    <div className="h-screen w-screen bg-[#020202] text-zinc-400 font-mono flex flex-col overflow-hidden">
-      {/* HEADER PROFESIONAL */}
-      <nav className="h-14 border-b border-white/5 bg-[#080808] flex items-center justify-between px-6">
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2 text-white font-black italic">
-            <Cpu className="text-purple-500" size={18} />
-            NIKIMARU_V25_TERMINAL
-          </div>
-          <div className="flex gap-4 text-[9px] font-bold border-l border-white/10 pl-6">
-            <span className="text-zinc-500">ENGINE: <span className="text-purple-400">NEURAL_V25</span></span>
-            <span className="text-zinc-500">SIM_PNL: <span className={pnlHist >= 0 ? "text-green-500" : "text-red-500"}>${pnlHist.toFixed(2)}</span></span>
-          </div>
-        </div>
-
+    <div className="h-screen w-full bg-[#050505] text-white font-mono flex flex-col overflow-hidden">
+      {/* HEADER */}
+      <header className="h-16 border-b border-white/10 flex items-center justify-between px-8 bg-black">
         <div className="flex items-center gap-4">
-          <div className="flex flex-col items-end">
-            <span className="text-[8px] text-zinc-600 font-black tracking-widest">LIVE_BTC_PRICE</span>
-            <div className="text-xl font-black text-green-500 tabular-nums tracking-tighter">${marketData.price.toLocaleString()}</div>
+          <Cpu className="text-purple-500 animate-pulse" />
+          <h1 className="text-lg font-black tracking-tighter">NIKIMARU_INTEL_V3</h1>
+          <div className="bg-zinc-900 px-3 py-1 rounded text-[10px] text-zinc-500 border border-white/5">
+            PNL: <span className={pnlHist >= 0 ? "text-green-500" : "text-red-500"}>${pnlHist.toFixed(2)}</span>
           </div>
-          <button
-            onClick={() => setIsAuto(!isAuto)}
-            className={`px-5 py-2 rounded-lg text-[10px] font-black transition-all border ${isAuto ? 'bg-purple-600/10 border-purple-500 text-purple-400 animate-pulse' : 'bg-white/5 border-white/10 text-zinc-500'}`}
-          >
-            {isAuto ? 'IA_AUTONOMY_ON' : 'MANUAL_OVERRIDE'}
-          </button>
         </div>
-      </nav>
+        <div className="text-right">
+          <div className="text-[10px] text-zinc-500 font-bold uppercase">BTC/USDT LIVE</div>
+          <div className="text-2xl font-black text-green-400 tabular-nums">${marketData.price.toLocaleString()}</div>
+        </div>
+      </header>
 
-      <div className="flex-1 flex overflow-hidden">
-        {/* PANEL IZQUIERDO: METRICAS */}
-        <aside className="w-16 border-r border-white/5 bg-[#050505] flex flex-col items-center py-6 gap-8">
-          <Target className="text-purple-500 cursor-pointer" size={20} />
-          <BarChart3 className="text-zinc-700 hover:text-white cursor-pointer" size={20} />
-          <LineChart className="text-zinc-700 hover:text-white cursor-pointer" size={20} />
-          <Settings className="text-zinc-700 hover:text-white cursor-pointer mt-auto" size={20} />
-        </aside>
+      <div className="flex-1 flex">
+        {/* PANEL LATERAL */}
+        <nav className="w-20 border-r border-white/10 flex flex-col items-center py-8 gap-10 bg-black">
+          <Brain className="text-purple-500 hover:scale-110 transition-transform cursor-pointer" size={24} />
+          <Target className="text-zinc-600 hover:text-white cursor-pointer" size={24} />
+          <Activity className="text-zinc-600 hover:text-white cursor-pointer" size={24} />
+          <Shield className="text-zinc-600 hover:text-white cursor-pointer mt-auto" size={24} />
+        </nav>
 
-        {/* ÁREA CENTRAL: GRÁFICO (SIMULACIÓN VISUAL) */}
-        <section className="flex-1 relative bg-black flex flex-col">
-          <div className="absolute top-6 left-6 z-20 flex flex-col gap-3">
-            <div className="bg-black/90 p-4 border border-purple-500/20 rounded-2xl backdrop-blur-xl shadow-2xl">
-              <div className="flex items-center gap-2 text-[8px] font-black text-purple-400 uppercase mb-2 tracking-widest">
-                <Brain size={12} /> Neural_Analysis_Live
+        {/* ÁREA DEL GRÁFICO */}
+        <main className="flex-1 relative flex flex-col">
+          <div className="absolute top-6 left-6 z-10 space-y-2">
+            <div className="bg-black/80 border border-purple-500/30 p-4 rounded-xl backdrop-blur-md">
+              <div className="text-[10px] text-purple-400 font-bold flex items-center gap-2 mb-1">
+                <Zap size={12} /> IA_STATUS
               </div>
-              <div className="space-y-1">
-                <div className="text-[10px] text-zinc-300 italic leading-snug">
-                  {aiBrain?.isBullishOB ? "Detectada absorción en zona de demanda institucional." :
-                    aiBrain?.isBearishOB ? "Detectada presión de venta en zona de oferta." :
-                      "Escaneando flujo de órdenes en micro-temporalidades..."}
-                </div>
-              </div>
-            </div>
-
-            {trade && (
-              <div className="bg-white/5 p-4 border border-white/10 rounded-2xl backdrop-blur-md">
-                <div className="text-[8px] text-zinc-500 uppercase mb-1 font-black">Active_Position</div>
-                <div className="flex items-center gap-3">
-                  <span className={`text-[10px] font-black ${trade.type === 'LONG' ? 'text-green-500' : 'text-red-500'}`}>{trade.type}</span>
-                  <span className="text-white text-[10px] font-bold">${trade.entry.toLocaleString()}</span>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* BACKGROUND GRID */}
-          <div className="absolute inset-0 opacity-10 pointer-events-none"
-            style={{ backgroundImage: 'radial-gradient(#ffffff 1px, transparent 1px)', backgroundSize: '30px 30px' }} />
-
-          <div className="flex-1 flex items-center justify-center">
-            <div className="flex flex-col items-center opacity-20">
-              <Activity size={60} className="text-zinc-700 mb-4" />
-              <span className="text-[10px] tracking-[1em] uppercase">Visualizer_Active</span>
-            </div>
-          </div>
-        </section>
-
-        {/* PANEL DERECHO: TERMINAL DE LOGS */}
-        <aside className="w-80 bg-[#080808] border-l border-white/5 flex flex-col">
-          <div className="p-4 border-b border-white/5">
-            <div className="text-[9px] font-black text-zinc-600 uppercase tracking-widest flex items-center gap-2">
-              <Cpu size={12} /> System_Logs
+              <p className="text-xs text-zinc-300 italic">{aiAnalysis}</p>
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-hide">
+          <canvas ref={canvasRef} className="w-full h-full cursor-crosshair" />
+        </main>
+
+        {/* TERMINAL DE OPERACIONES */}
+        <aside className="w-80 border-l border-white/10 bg-black flex flex-col">
+          <div className="p-6 space-y-4">
+            <button
+              onClick={() => openTrade('LONG')}
+              className="w-full py-4 bg-green-500/10 border border-green-500/50 text-green-500 font-black rounded-xl hover:bg-green-500 hover:text-black transition-all"
+            >
+              COMPRAR (LONG)
+            </button>
+            <button
+              onClick={() => openTrade('SHORT')}
+              className="w-full py-4 bg-red-500/10 border border-red-500/50 text-red-500 font-black rounded-xl hover:bg-red-500 hover:text-black transition-all"
+            >
+              VENDER (SHORT)
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-6 space-y-2 pb-6">
+            <div className="text-[10px] text-zinc-600 font-bold uppercase mb-4 tracking-widest">Registros del Motor</div>
             {logs.map((log, i) => (
-              <div key={i} className={`text-[9px] leading-tight font-mono transition-all ${i === 0 ? 'text-white' : 'text-zinc-600'}`}>
-                <span className="text-purple-900 mr-2">❯</span> {log}
+              <div key={i} className="text-[10px] text-zinc-400 border-l border-purple-500/30 pl-3 py-1">
+                {log}
               </div>
             ))}
-          </div>
-
-          <div className="p-6 bg-[#0a0a0a] border-t border-white/5 space-y-3">
-            <button
-              onClick={() => executeVirtualTrade('LONG')}
-              disabled={!!trade}
-              className="w-full bg-green-600/10 border border-green-600/30 hover:bg-green-600/20 text-green-500 font-black py-3 rounded-xl text-[10px] transition-all disabled:opacity-20"
-            >
-              VIRTUAL_MARKET_LONG
-            </button>
-            <button
-              onClick={() => executeVirtualTrade('SHORT')}
-              disabled={!!trade}
-              className="w-full bg-red-600/10 border border-red-600/30 hover:bg-red-600/20 text-red-500 font-black py-3 rounded-xl text-[10px] transition-all disabled:opacity-20"
-            >
-              VIRTUAL_MARKET_SHORT
-            </button>
           </div>
         </aside>
       </div>
