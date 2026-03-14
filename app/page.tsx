@@ -1,16 +1,20 @@
 'use client';
 
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { Zap, Target, Brain, Loader2, Activity, Radio, Lock, Unlock, Crosshair, Cpu } from 'lucide-react';
+import {
+  Zap, Target, Brain, Radio, Settings, ShieldCheck,
+  Activity, TrendingUp, BarChart3, Clock3, Lock, Unlock, Cpu, Signal
+} from 'lucide-react';
 
-export default function NikimaruV31Final() {
+export default function NikimaruTerminalV40Shadow() {
   const canvasRef = useRef(null);
   const [candles, setCandles] = useState([]);
   const [marketData, setMarketData] = useState({ price: 0 });
   const [intervalo, setIntervalo] = useState('1m');
-  const [isAuto, setIsAuto] = useState(false);
   const [trade, setTrade] = useState(null);
-  const [aiAnalysis, setAiAnalysis] = useState("SNC_V31: Sistema listo. Esperando ineficiencia...");
+  const [isAuto, setIsAuto] = useState(false);
+  const [aiAnalysis, setAiAnalysis] = useState("SNC_V40: Sistema Quantum cargado. Buscando ineficiencias...");
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   // --- 1. LÓGICA DE DATOS (BINANCE) ---
   useEffect(() => {
@@ -21,7 +25,7 @@ export default function NikimaruV31Final() {
     };
 
     const fetchHistory = async () => {
-      const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${intervalo}&limit=80`);
+      const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${intervalo}&limit=100`);
       const d = await res.json();
       setCandles(d.map(c => ({
         open: parseFloat(c[1]),
@@ -36,7 +40,7 @@ export default function NikimaruV31Final() {
     return () => ws.close();
   }, [intervalo]);
 
-  // --- 2. MOTOR DE DIBUJO (CANVAS FIX) ---
+  // --- 2. MOTOR DE DIBUJO (CON ESTÉTICA "SHADOW PROTOCOL") ---
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || candles.length === 0) return;
@@ -48,9 +52,8 @@ export default function NikimaruV31Final() {
 
     const w = canvas.width;
     const h = canvas.height;
-    const padding = 40;
+    const padding = 50;
 
-    // Escalamiento de precios
     const maxP = Math.max(...candles.map(c => c.high));
     const minP = Math.min(...candles.map(c => c.low));
     const range = maxP - minP || 1;
@@ -58,143 +61,147 @@ export default function NikimaruV31Final() {
     const getY = (price) => h - padding - ((price - minP) / range) * (h - 2 * padding);
     const candleWidth = w / candles.length;
 
-    // Limpiar y dibujar fondo
+    // Fondo Negro Absoluto y Cuadrícula Sutil
     ctx.clearRect(0, 0, w, h);
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.02)';
     ctx.lineWidth = 0.5;
-
-    // Grid
     for (let i = 0; i < 10; i++) {
-      const y = (h / 10) * i;
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+      const y = (h / 10) * i; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+      const x = (w / 10) * i; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
     }
 
-    // Dibujar Velas
+    // Dibujar Velas (Colores Tácticos)
     candles.forEach((c, i) => {
       const x = i * candleWidth + candleWidth / 2;
       const isBull = c.close >= c.open;
-      const color = isBull ? '#22c55e' : '#ef4444';
 
-      // Mecha
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1.5;
+      // Mecha (Rojo/Verde Táctico de las fotos)
+      ctx.strokeStyle = isBull ? '#22c55e' : '#ef4444';
+      ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(x, getY(c.high));
       ctx.lineTo(x, getY(c.low));
       ctx.stroke();
 
-      // Cuerpo
-      ctx.fillStyle = color;
+      // Cuerpo (Estilo Shaded de TradingView)
+      ctx.fillStyle = isBull ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)';
+      ctx.strokeStyle = isBull ? '#22c55e' : '#ef4444';
+      ctx.lineWidth = 1;
       const bodyTop = getY(Math.max(c.open, c.close));
       const bodyBottom = getY(Math.min(c.open, c.close));
       ctx.fillRect(x - (candleWidth / 3), bodyTop, (candleWidth / 1.5), Math.max(bodyBottom - bodyTop, 1));
+      ctx.strokeRect(x - (candleWidth / 3), bodyTop, (candleWidth / 1.5), Math.max(bodyBottom - bodyTop, 1));
     });
 
-    // Líneas de Trade
+    // Líneas de Trading (Virtuales)
     if (trade) {
       const drawLevel = (price, color, label) => {
         const y = getY(price);
-        ctx.setLineDash([5, 5]);
-        ctx.strokeStyle = color;
+        ctx.setLineDash([10, 5]);
+        ctx.strokeStyle = color; ctx.lineWidth = 1.5;
         ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
-        ctx.fillStyle = color;
-        ctx.font = '10px monospace';
-        ctx.fillText(label, 10, y - 5);
+        ctx.fillStyle = color; ctx.font = '10px monospace italic';
+        ctx.fillText(`${label}: ${price.toFixed(2)}`, w - 120, y - 6);
       };
       drawLevel(trade.entry, '#fff', 'ENTRY');
-      drawLevel(trade.sl, '#ef4444', 'STOP LOSS');
-      drawLevel(trade.tp, '#22c55e', 'TAKE PROFIT');
+      drawLevel(trade.sl, '#ef4444', 'SHADOW_STOP');
+      drawLevel(trade.tp, '#22c55e', 'SNIPER_TP');
+      ctx.setLineDash([]);
     }
 
   }, [candles, marketData, trade]);
 
-  // --- 3. LÓGICA DE EJECUCIÓN ---
+  // --- 3. GESTIÓN DE TRADING ---
   const handleManualTrade = (type) => {
     const entry = marketData.price;
-    const offset = entry * 0.001; // 0.1% de stop
+    const offset = entry * 0.001;
     setTrade({
-      type,
-      entry,
+      type, entry,
       sl: type === 'LONG' ? entry - offset : entry + offset,
       tp: type === 'LONG' ? entry + (offset * 2) : entry - (offset * 2)
     });
-    setAiAnalysis(`SNIPER_${type}: Posición iniciada. Monitoreando liquidez...`);
+    setAiAnalysis(`SNC_${type}: Inestabilidad en micro-flujo detectada. Orden iniciada.`);
   };
 
-  const pnlPerc = trade ? ((trade.type === 'LONG' ? (marketData.price - trade.entry) : (trade.entry - marketData.price)) / trade.entry) * 100 : 0;
+  const getSession = () => {
+    const h = new Date().getUTCHours();
+    if (h >= 13 && h <= 21) return "NEW YORK SESSION";
+    if (h >= 8 && h <= 16) return "LONDON SESSION";
+    return "OFF_HOUR_FLOW";
+  };
 
   return (
-    <div className="h-screen w-screen bg-[#050505] text-zinc-400 font-mono flex flex-col overflow-hidden italic">
-      {/* HEADER */}
-      <nav className="h-16 border-b border-white/5 flex items-center justify-between px-8 bg-black">
+    <div className="h-screen w-screen bg-[#020202] text-zinc-500 font-mono flex flex-col overflow-hidden italic select-none">
+
+      {/* HEADER DE LA TERMINAL */}
+      <nav className="h-12 border-b border-red-950/20 flex items-center justify-between px-8 bg-black/80 backdrop-blur-md">
         <div className="flex items-center gap-6">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-red-600/10 rounded-lg border border-red-600/20">
-              <Cpu size={18} className="text-red-600 animate-pulse" />
-            </div>
-            <span className="text-white font-black text-xs tracking-tighter uppercase">Nikimaru_V31_Quantum</span>
+          <div className="flex items-center gap-2 text-white font-black italic text-xs tracking-tighter">
+            <Signal size={16} className="text-red-600 animate-pulse" /> NIKIMARU_V40_DOMINIO
           </div>
-          <div className="flex gap-1">
+          <div className="flex gap-1 border-l border-white/5 pl-4">
             {['1m', '5m', '15m'].map(t => (
-              <button key={t} onClick={() => setIntervalo(t)} className={`px-3 py-1 text-[10px] rounded border ${intervalo === t ? 'bg-red-600 border-red-600 text-white' : 'border-white/10 hover:bg-white/5'}`}>{t}</button>
+              <button key={t} onClick={() => setIntervalo(t)} className={`px-2.5 py-0.5 text-[9px] rounded-sm transition-all ${intervalo === t ? 'bg-red-600/30 border border-red-600/60 text-white font-black' : 'hover:bg-white/5'}`}>{t}</button>
             ))}
           </div>
         </div>
-
-        <div className="flex items-center gap-8">
-          <div className="text-right">
-            <p className="text-[9px] text-zinc-600 font-bold uppercase">BTC_USDT_Live</p>
-            <p className="text-xl font-black text-white tabular-nums tracking-tighter">${marketData.price.toLocaleString()}</p>
-          </div>
-          <button onClick={() => setIsAuto(!isAuto)} className={`px-4 py-2 rounded-xl text-[10px] font-black border-2 transition-all ${isAuto ? 'bg-red-600/20 border-red-600 text-red-500 animate-pulse' : 'border-zinc-800 text-zinc-600'}`}>
-            {isAuto ? 'AUTO_PILOT_ON' : 'MANUAL_MODE'}
+        <div className="flex items-center gap-6">
+          <div className="text-[11px] font-black text-white tabular-nums tracking-tighter">${marketData.price.toLocaleString()}</div>
+          <button onClick={() => setIsAuto(!isAuto)} className={`px-4 py-1.5 rounded-sm text-[9px] font-black border-2 transition-all ${isAuto ? 'bg-red-600/20 border-red-600 text-red-500 animate-pulse' : 'border-zinc-800 text-zinc-700'}`}>
+            {isAuto ? 'AUTO_SNC_ACTIVE' : 'MANUAL_MODE'}
           </button>
         </div>
       </nav>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* MAIN CHART AREA */}
+        {/* GRÁFICO Y PANELES IA FLOTANTES */}
         <main className="flex-1 bg-black p-4 relative overflow-hidden">
-          <div className="w-full h-full border border-white/5 rounded-[2rem] bg-[#020202] relative overflow-hidden shadow-2xl">
-            {/* AQUÍ SE RENDERIZA EL GRÁFICO */}
-            <canvas ref={canvasRef} className="w-full h-full" />
+          <div className="w-full h-full border border-red-950/20 rounded-[2.5rem] bg-black/40 relative overflow-hidden">
+            <canvas ref={canvasRef} className="w-full h-full opacity-60 grayscale brightness-110" />
 
-            {/* OVERLAY INFO */}
-            <div className="absolute top-8 left-8 p-4 bg-black/60 backdrop-blur-md border border-white/10 rounded-2xl max-w-xs">
-              <div className="flex items-center gap-2 mb-2 text-red-500 text-[9px] font-black tracking-widest uppercase">
-                <Brain size={14} /> Neural_Analysis
+            {/* HUD FLOTANTE: ANÁLISIS IA TÁCTICO */}
+            <div className="absolute top-10 left-10 p-5 bg-black/90 backdrop-blur-xl border border-red-900/30 rounded-3xl max-w-sm shadow-[0_0_50px_rgba(255,0,0,0.1)]">
+              <div className="flex items-center gap-2 mb-3 text-red-500 text-[10px] font-black tracking-widest uppercase">
+                <Brain size={16} /> Neural_Flow_Analysis_v40
               </div>
-              <p className="text-[10px] text-zinc-300 leading-relaxed">"{aiAnalysis}"</p>
+              <p className="text-[11px] text-zinc-300 leading-relaxed italic">"{aiAnalysis}"</p>
+              {trade && (
+                <div className="mt-4 border-t border-white/10 pt-4 space-y-2">
+                  <p className="text-[9px] text-zinc-500">PNL_SIM_VIRTUAL</p>
+                  <p className={`text-4xl font-black ${marketData.price > trade.entry ? 'text-green-500' : 'text-red-500'}`}>{((marketData.price - trade.entry) / trade.entry * 100).toFixed(3)}%</p>
+                </div>
+              )}
             </div>
 
-            {trade && (
-              <div className={`absolute bottom-8 right-8 p-6 rounded-3xl border-2 backdrop-blur-xl ${pnlPerc >= 0 ? 'bg-green-500/10 border-green-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
-                <p className="text-[9px] font-black mb-1 opacity-50 uppercase">P&L_Unrealized</p>
-                <p className={`text-3xl font-black ${pnlPerc >= 0 ? 'text-green-500' : 'text-red-500'}`}>{pnlPerc >= 0 ? '+' : ''}{pnlPerc.toFixed(3)}%</p>
-              </div>
-            )}
+            {/* HUD FLOTANTE: SESIÓN TÁCTICA */}
+            <div className="absolute top-10 right-10 p-4 bg-black/90 backdrop-blur-md border border-white/5 rounded-2xl flex gap-3 items-center">
+              <div className="text-[8px] font-black uppercase text-zinc-600">Sesión_SNC</div>
+              <Clock3 size={14} className="text-zinc-600" />
+              <div className="text-[10px] text-white font-bold">{getSession()}</div>
+            </div>
           </div>
         </main>
 
-        {/* SIDEBAR CONTROL */}
-        <aside className="w-72 bg-black border-l border-white/5 p-6 flex flex-col gap-4">
-          <div className="p-4 bg-zinc-900/50 rounded-2xl border border-white/5">
-            <p className="text-[9px] font-black text-zinc-500 uppercase mb-4 tracking-widest">Controles_SNC</p>
-            <div className="grid grid-cols-2 gap-2">
-              <button onClick={() => handleManualTrade('LONG')} className="py-4 bg-green-600/20 text-green-500 rounded-xl font-black text-[10px] hover:bg-green-600 hover:text-black transition-all">LONG</button>
-              <button onClick={() => handleManualTrade('SHORT')} className="py-4 bg-red-600/20 text-red-500 rounded-xl font-black text-[10px] hover:bg-red-600 hover:text-black transition-all">SHORT</button>
-            </div>
-            {trade && (
-              <button onClick={() => setTrade(null)} className="w-full mt-2 py-3 bg-white/5 text-white rounded-xl font-black text-[9px] uppercase hover:bg-white/10">Cerrar_Operación</button>
-            )}
+        {/* BARRA LATERAL (CONTROL WYCKOFF) */}
+        <aside className="w-72 bg-black border-l border-red-950/10 p-6 flex flex-col gap-6">
+          <div className="flex justify-between items-center text-xs font-bold text-white mb-2">
+            <span>BINANCE:BTCUSDT</span>
+            <Target size={16} className="text-red-600" />
           </div>
 
-          <div className="flex-1 p-4 bg-zinc-900/20 rounded-2xl border border-white/5">
-            <p className="text-[9px] font-black text-zinc-700 uppercase mb-4">Liquidity_Scanner</p>
-            <div className="space-y-4 text-[11px]">
-              <div className="flex justify-between"><span>RSI_BIAS:</span> <span className="text-white">NEUTRAL</span></div>
-              <div className="flex justify-between"><span>VOL_PROF:</span> <span className="text-red-500 font-bold tracking-widest">BAJO</span></div>
-              <div className="flex justify-between"><span>SNC_STATUS:</span> <span className="text-zinc-500">BUSCANDO...</span></div>
+          <div className="bg-zinc-950 p-5 rounded-2xl border border-white/5 space-y-4 shadow-inner">
+            <p className="text-[9px] font-black text-zinc-700 uppercase mb-4 tracking-widest border-b border-white/10 pb-2">Controles_Shadow</p>
+            <button onClick={() => handleManualTrade('LONG')} className="w-full py-4 bg-green-600 text-black font-black text-[10px] hover:bg-green-400 transition-all">LONG_SHADOW</button>
+            <button onClick={() => handleManualTrade('SHORT')} className="w-full py-4 bg-red-600 text-black font-black text-[10px] hover:bg-red-400 transition-all">SHORT_SNIPER</button>
+          </div>
+
+          <div className="flex-1 p-5 bg-white/5 rounded-2xl border border-white/5 overflow-y-auto space-y-4">
+            <div className="text-[9px] font-black text-zinc-600 mb-4 flex items-center gap-2"><Settings size={12} /> VITAL_FLOW_DATA</div>
+            <div className="space-y-3 text-[10px]">
+              <div className="flex justify-between"><span>RSI_BIAS:</span> <span className="text-purple-500">NEUTRAL</span></div>
+              <div className="flex justify-between"><span> VOL_PROF:</span> <span className="text-white">BAJO</span></div>
+              <div className="flex justify-between"><span>SNC_CONFIDENCE:</span> <span className="text-red-500">65%</span></div>
+              <div className="flex justify-between"><span>LIQUIDITY_STATUS:</span> <span className="text-green-500">SWEPT</span></div>
             </div>
           </div>
         </aside>
