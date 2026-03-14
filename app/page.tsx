@@ -1,80 +1,139 @@
 'use client';
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { Brain, Cpu, Zap, Target, Activity, Terminal, Globe, ShieldCheck, History, XCircle, Bot, Settings2, Wallet, Clock } from 'lucide-react';
+import { Cpu, Globe, History, Bot, Settings2, Clock } from 'lucide-react';
 
-export default function NikimaruV140Modular() {
+export default function NikimaruV140Final() {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const [candles, setCandles] = useState([]);
   const [price, setPrice] = useState(0);
   const [tf, setTf] = useState('1m');
 
-  // --- GESTIÓN DE CAPITAL Y ESTADOS ---
-  const [initialCapital, setInitialCapital] = useState(10000);
+  // --- ESTADOS DE TRADING ---
   const [balance, setBalance] = useState(10000);
-  const [aiReport, setAiReport] = useState("SNC_SYSTEM: Online. Conectado a BingX VST.");
+  const [aiReport, setAiReport] = useState("SNC_SYSTEM: Online. Esperando señal...");
   const [isTrading, setIsTrading] = useState(false);
   const [isAuto, setIsAuto] = useState(false);
   const [trades, setTrades] = useState([]);
 
-  // CONFIGURACIÓN DE RIESGO Y TIEMPO
   const [leverage, setLeverage] = useState(20);
   const [tradeAmount, setTradeAmount] = useState(100);
   const [tradeDuration, setTradeDuration] = useState(60);
 
-  // --- MOTOR DE DATOS (BINANCE PARA EL GRÁFICO) ---
+  // --- MOTOR DE DATOS (BINANCE) ---
   useEffect(() => {
-    fetch(`https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${tf}&limit=80`)
-      .then(res => res.json())
-      .then(data => {
-        setCandles(data.map(c => ({
+    // 1. Carga inicial de datos históricos
+    const fetchHistory = async () => {
+      try {
+        const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${tf}&limit=80`);
+        const data = await res.json();
+        const formatted = data.map(c => ({
           time: c[0], open: parseFloat(c[1]), high: parseFloat(c[2]), low: parseFloat(c[3]), close: parseFloat(c[4])
-        })));
-      });
+        }));
+        setCandles(formatted);
+        if (formatted.length > 0) setPrice(formatted[formatted.length - 1].close);
+      } catch (err) {
+        setAiReport("ERROR_DATA: No se pudo conectar con Binance");
+      }
+    };
 
+    fetchHistory();
+
+    // 2. WebSocket para tiempo real
     const ws = new WebSocket(`wss://stream.binance.com:9443/ws/btcusdt@kline_${tf}`);
     ws.onmessage = (e) => {
       const { k } = JSON.parse(e.data);
-      setPrice(parseFloat(k.c));
-      if (k.x) {
-        setCandles(prev => [...prev.slice(1), { time: k.t, open: parseFloat(k.o), high: parseFloat(k.h), low: parseFloat(k.l), close: parseFloat(k.c) }]);
+      const newPrice = parseFloat(k.c);
+      setPrice(newPrice);
+
+      if (k.x) { // Si la vela cierra
+        setCandles(prev => [...prev.slice(1), {
+          time: k.t, open: parseFloat(k.o), high: parseFloat(k.h), low: parseFloat(k.l), close: newPrice
+        }]);
       }
     };
+
     return () => ws.close();
   }, [tf]);
 
-  // --- LÓGICA DE CIERRE POR TIEMPO (CONTADOR) ---
+  // --- MOTOR GRÁFICO (CORREGIDO PARA VISIBILIDAD) ---
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current;
+    const container = containerRef.current;
+    if (!canvas || !container || candles.length === 0) return;
+
+    const ctx = canvas.getContext('2d');
+    // Ajustar resolución del canvas al contenedor
+    canvas.width = container.clientWidth;
+    canvas.height = container.clientHeight;
+
+    const w = canvas.width;
+    const h = canvas.height;
+    const paddingX = 50;
+    const paddingY = 30;
+    const chartW = w - paddingX;
+    const chartH = h - (paddingY * 2);
+
+    const highValues = candles.map(c => c.high);
+    const lowValues = candles.map(c => c.low);
+    const maxP = Math.max(...highValues);
+    const minP = Math.min(...lowValues);
+    const range = (maxP - minP) || 1;
+
+    const getY = (p) => paddingY + chartH - ((p - minP) / range) * chartH;
+    const stepX = chartW / candles.length;
+
+    // Fondo
+    ctx.clearRect(0, 0, w, h);
+
+    // Dibujar Velas
+    candles.forEach((c, i) => {
+      const x = (i * stepX) + stepX / 2;
+      const isUp = c.close >= c.open;
+
+      // Mecha
+      ctx.strokeStyle = isUp ? '#00ffa3' : '#ff3355';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, getY(c.high));
+      ctx.lineTo(x, getY(c.low));
+      ctx.stroke();
+
+      // Cuerpo
+      ctx.fillStyle = isUp ? '#00ffa3' : '#ff3355';
+      const bodyTop = getY(Math.max(c.open, c.close));
+      const bodyBottom = getY(Math.min(c.open, c.close));
+      const bodyH = Math.max(Math.abs(bodyTop - bodyBottom), 2);
+      ctx.fillRect(x - stepX / 3, bodyTop, (stepX / 3) * 2, bodyH);
+    });
+
+    // Precio Actual (Línea horizontal)
+    ctx.setLineDash([5, 5]);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+    ctx.beginPath();
+    ctx.moveTo(0, getY(price));
+    ctx.lineTo(chartW, getY(price));
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    // Etiqueta de precio
+    ctx.fillStyle = '#fff';
+    ctx.font = '10px monospace';
+    ctx.fillText(price.toFixed(2), chartW + 5, getY(price) + 4);
+
+  }, [candles, price]);
+
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTrades(prevTrades => {
-        return prevTrades.map(trade => {
-          if (trade.status === 'OPEN' && trade.timeLeft > 0) {
-            return { ...trade, timeLeft: trade.timeLeft - 1 };
-          }
-          if (trade.status === 'OPEN' && trade.timeLeft <= 0) {
-            // Simulamos el cierre en el balance (BingX lo hace real en su plataforma)
-            const isWin = Math.random() > 0.48;
-            const pnl = isWin ? (trade.margin * trade.lev * 0.002) : (trade.margin * trade.lev * -0.0025);
-            setBalance(b => b + pnl);
-            return { ...trade, status: 'CLOSED', profit: parseFloat(pnl.toFixed(2)) };
-          }
-          return trade;
-        });
-      });
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
+    const anim = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(anim);
+  }, [draw]);
 
-  // --- EJECUCIÓN REAL BINGX (MANUAL Y IA) ---
+  // --- EJECUCIÓN BINGX ---
   const handleTrade = useCallback(async (direction) => {
-    if (isTrading || tradeAmount > balance) {
-      setAiReport("SNC_ERROR: Fondos insuficientes o ejecución en curso.");
-      return;
-    }
-
+    if (isTrading) return;
     setIsTrading(true);
-    setAiReport(`ENVIANDO ${direction === 'BUY' ? 'LONG' : 'SHORT'} A BINGX VST...`);
+    setAiReport(`BINGX: Enviando ${direction}...`);
 
     try {
       const response = await fetch('/api/bingx', {
@@ -88,184 +147,141 @@ export default function NikimaruV140Modular() {
         })
       });
 
-      const result = await response.json();
+      const data = await response.json();
 
-      if (result.code === 0) {
+      if (data.code === 0) {
+        setAiReport(`EXITO: Orden ${direction} abierta`);
         const newTrade = {
-          id: result.data.orderId || Math.random().toString(36).substr(2, 4).toUpperCase(),
+          id: data.data.orderId || Math.random().toString(36).substr(2, 5),
           type: direction === 'BUY' ? 'LONG' : 'SHORT',
           price: price,
           lev: leverage,
           margin: tradeAmount,
-          profit: 0,
           timeLeft: tradeDuration,
-          status: 'OPEN',
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          status: 'OPEN'
         };
-        setTrades(prev => [newTrade, ...prev].slice(0, 10));
-        setAiReport(`BINGX_SUCCESS: ID ${result.data.orderId}`);
+        setTrades(prev => [newTrade, ...prev]);
       } else {
-        setAiReport(`BINGX_API_ERROR: ${result.msg}`);
+        setAiReport(`BINGX_ERR: ${data.msg}`);
       }
-    } catch (error) {
-      setAiReport("SNC_NETWORK_ERROR: Fallo en Vercel Edge");
+    } catch (err) {
+      setAiReport("SNC_ERR: Error de servidor");
     } finally {
       setIsTrading(false);
     }
-  }, [price, tradeAmount, leverage, balance, isTrading, tradeDuration]);
+  }, [price, tradeAmount, leverage, tradeDuration, isTrading]);
 
-  // --- IA AUTÓNOMA CONECTADA A BINGX ---
+  // --- IA AUTÓNOMA ---
   useEffect(() => {
-    let interval;
-    if (isAuto) {
-      setAiReport("IA_SNC_AUTONOMA: Escaneando señales para BingX...");
-      interval = setInterval(() => {
-        if (!isTrading) {
-          const decision = Math.random();
-          if (decision > 0.96) handleTrade('BUY');
-          else if (decision < 0.04) handleTrade('SELL');
-        }
-      }, 4000);
-    }
+    if (!isAuto) return;
+    const interval = setInterval(() => {
+      const rand = Math.random();
+      if (rand > 0.98) handleTrade('BUY');
+      else if (rand < 0.02) handleTrade('SELL');
+    }, 5000);
     return () => clearInterval(interval);
-  }, [isAuto, isTrading, handleTrade]);
-
-  // --- MOTOR GRÁFICO ---
-  const draw = useCallback(() => {
-    const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container || candles.length === 0) return;
-    const ctx = canvas.getContext('2d');
-    canvas.width = container.clientWidth;
-    canvas.height = container.clientHeight;
-    const w = canvas.width; const h = canvas.height;
-    const pX = 60; const pY = 40;
-    const cW = w - pX; const cH = h - (pY * 2);
-    const maxP = Math.max(...candles.map(c => c.high));
-    const minP = Math.min(...candles.map(c => c.low));
-    const range = (maxP - minP) || 1;
-    const getY = (p) => pY + cH - ((p - minP) / range) * cH;
-    const stepX = cW / candles.length;
-
-    ctx.clearRect(0, 0, w, h);
-    candles.forEach((c, i) => {
-      const x = (i * stepX) + stepX / 2;
-      const isUp = c.close >= c.open;
-      ctx.strokeStyle = isUp ? '#00ffa3' : '#ff3355';
-      ctx.beginPath(); ctx.moveTo(x, getY(c.high)); ctx.lineTo(x, getY(c.low)); ctx.stroke();
-      ctx.fillStyle = isUp ? 'rgba(0, 255, 163, 0.4)' : 'rgba(255, 51, 85, 0.4)';
-      ctx.fillRect(x - stepX / 3, getY(Math.max(c.open, c.close)), (stepX / 3) * 2, Math.max(Math.abs(getY(c.open) - getY(c.close)), 1));
-    });
-  }, [candles]);
-
-  useEffect(() => {
-    const anim = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(anim);
-  }, [draw]);
+  }, [isAuto, handleTrade]);
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-[#020202] text-zinc-400 font-mono uppercase italic overflow-hidden">
+    <div className="flex flex-col h-screen w-screen bg-[#020202] text-zinc-400 font-mono overflow-hidden uppercase">
 
       {/* HEADER */}
-      <div className="h-14 border-b border-white/5 flex items-center justify-between px-6 bg-black z-50">
+      <div className="h-14 border-b border-white/5 flex items-center justify-between px-6 bg-black">
         <div className="flex items-center gap-4">
-          <div className="bg-red-600 p-1 rounded text-white animate-pulse"><Cpu size={16} /></div>
-          <span className="text-white font-black tracking-tighter text-xs">NIKIMARU_SNC_V140</span>
-          <button onClick={() => setIsAuto(!isAuto)} className={`flex items-center gap-2 ml-4 px-3 py-1 rounded border transition-all text-[9px] font-black ${isAuto ? 'bg-red-600 border-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)]' : 'bg-white/5 border-white/10 text-zinc-500'}`}>
-            <Bot size={12} /> {isAuto ? 'IA_BINGX_ON' : 'IA_OFF'}
+          <Cpu className="text-red-600 animate-pulse" size={20} />
+          <span className="text-white font-black text-xs tracking-widest">NIKIMARU_V140_SNC</span>
+          <button
+            onClick={() => setIsAuto(!isAuto)}
+            className={`px-3 py-1 rounded border text-[9px] font-bold transition-all ${isAuto ? 'bg-red-600 border-red-500 text-white' : 'bg-zinc-900 border-zinc-800 text-zinc-500'}`}
+          >
+            <Bot size={12} className="inline mr-1" /> {isAuto ? 'AUTO_ON' : 'AUTO_OFF'}
           </button>
         </div>
-        <div className="flex gap-8 items-center">
+        <div className="flex gap-6 items-center">
           <div className="text-right">
-            <p className="text-[7px] text-zinc-600 font-bold">TOTAL_EQUITY</p>
-            <p className="text-sm font-black text-green-500 tabular-nums">${balance.toLocaleString()}</p>
+            <p className="text-[7px] text-zinc-500">VST_BALANCE</p>
+            <p className="text-sm font-black text-green-500">${balance.toFixed(2)}</p>
           </div>
-          <div className="text-right border-l border-white/10 pl-6 text-white font-black">
-            <p className="text-[7px] text-zinc-600 font-bold">BTC_PRICE</p>
-            <p className="text-sm tabular-nums">${price.toLocaleString()}</p>
+          <div className="text-right border-l border-white/10 pl-6">
+            <p className="text-[7px] text-zinc-500">BTC_USDT</p>
+            <p className="text-sm font-black text-white">${price.toLocaleString()}</p>
           </div>
         </div>
       </div>
 
       <div className="flex flex-grow overflow-hidden">
-        {/* PANEL IZQUIERDO: CONFIG */}
-        <div className="w-64 border-r border-white/5 p-4 flex flex-col gap-4 bg-[#050505] z-20">
-          <div className="p-4 bg-black/60 rounded-xl border border-white/10">
-            <div className="flex items-center gap-2 text-blue-500 text-[9px] font-black mb-4">
-              <Clock size={12} /> EXPIRATION
-            </div>
+        {/* SIDEBAR LEFT */}
+        <div className="w-64 border-r border-white/5 bg-[#050505] p-4 space-y-4">
+          <div className="p-4 bg-black border border-white/10 rounded-xl">
+            <label className="text-[8px] text-blue-500 font-bold mb-2 block"><Clock size={10} className="inline mb-1" /> DURACIÓN</label>
             <select
               value={tradeDuration}
               onChange={(e) => setTradeDuration(parseInt(e.target.value))}
-              className="w-full bg-black border border-white/10 rounded p-2 text-[10px] text-white outline-none focus:border-blue-600"
+              className="w-full bg-[#0a0a0a] border border-white/5 p-2 text-xs text-white outline-none"
             >
-              <option value={30}>30 SECONDS</option>
-              <option value={60}>1 MINUTE</option>
-              <option value={300}>5 MINUTES</option>
+              <option value={60}>1 MINUTO</option>
+              <option value={300}>5 MINUTOS</option>
             </select>
           </div>
 
-          <div className="p-4 bg-black/60 rounded-xl border border-white/10">
-            <div className="flex items-center gap-2 text-red-500 text-[9px] font-black mb-4">
-              <Settings2 size={12} /> RISK_PARAM
-            </div>
+          <div className="p-4 bg-black border border-white/10 rounded-xl">
+            <label className="text-[8px] text-red-500 font-bold mb-2 block"><Settings2 size={10} className="inline mb-1" /> RIESGO</label>
             <div className="space-y-4">
-              <label className="text-[8px] text-zinc-500">LEVERAGE: {leverage}X</label>
-              <input type="range" min="1" max="125" value={leverage} onChange={(e) => setLeverage(parseInt(e.target.value))} className="w-full accent-red-600" />
-              <label className="text-[8px] text-zinc-500 block mt-2">MARGIN (USDT)</label>
-              <input type="number" value={tradeAmount} onChange={(e) => setTradeAmount(parseInt(e.target.value))} className="w-full bg-black border border-white/10 rounded p-2 text-[10px] text-white outline-none" />
+              <input type="range" min="1" max="125" value={leverage} onChange={(e) => setLeverage(e.target.value)} className="w-full accent-red-600" />
+              <div className="flex justify-between text-[9px] text-zinc-500 font-bold">
+                <span>PALANCA</span>
+                <span>{leverage}X</span>
+              </div>
+              <input
+                type="number"
+                value={tradeAmount}
+                onChange={(e) => setTradeAmount(e.target.value)}
+                className="w-full bg-[#0a0a0a] border border-white/5 p-2 text-xs text-white"
+                placeholder="MARGIN"
+              />
             </div>
           </div>
         </div>
 
-        {/* CENTRO: CHART */}
-        <div ref={containerRef} className="flex-grow relative bg-[#020202] overflow-hidden">
-          <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" />
+        {/* CHART CENTER */}
+        <div ref={containerRef} className="flex-grow relative bg-[#020202]">
+          <div className="absolute top-4 left-4 z-10 flex gap-2">
+            {['1m', '5m', '15m'].map(item => (
+              <button key={item} onClick={() => setTf(item)} className={`px-2 py-1 text-[8px] border ${tf === item ? 'bg-white text-black' : 'bg-black text-zinc-500 border-white/10'}`}>{item}</button>
+            ))}
+          </div>
+          <canvas ref={canvasRef} className="w-full h-full" />
         </div>
 
-        {/* PANEL DERECHO: TRADES */}
-        <div className="w-72 border-l border-white/5 p-4 flex flex-col gap-4 bg-[#050505] z-20">
-          <div className="flex-grow flex flex-col overflow-hidden">
-            <div className="flex items-center gap-2 text-[8px] font-black text-zinc-500 mb-4 tracking-widest uppercase">
-              <History size={12} /> BingX_VST_History
-            </div>
-            <div className="flex-grow overflow-y-auto space-y-2 pr-1 custom-scrollbar">
-              {trades.map((trade) => (
-                <div key={trade.id} className={`bg-white/5 p-2 rounded border ${trade.status === 'OPEN' ? 'border-blue-500/30' : 'border-white/5 opacity-50'}`}>
-                  <div className="flex justify-between items-center text-[8px] mb-1 font-bold">
-                    <span className={trade.type === 'LONG' ? 'text-green-500' : 'text-red-500'}>{trade.type} {trade.lev}X</span>
-                    {trade.status === 'OPEN' ? (
-                      <span className="text-blue-500 animate-pulse">{trade.timeLeft}s</span>
-                    ) : (
-                      <span className="text-zinc-600">CLOSED</span>
-                    )}
-                  </div>
-                  <div className="flex justify-between items-end">
-                    <span className="text-[9px] text-zinc-500">ID: {trade.id}</span>
-                    <span className={`text-[10px] font-black ${trade.status === 'OPEN' ? 'text-white' : (trade.profit >= 0 ? 'text-green-500' : 'text-red-500')}`}>
-                      {trade.status === 'OPEN' ? 'OPEN' : `${trade.profit >= 0 ? '+' : ''}${trade.profit}`}
-                    </span>
-                  </div>
+        {/* SIDEBAR RIGHT */}
+        <div className="w-72 border-l border-white/5 bg-[#050505] p-4 flex flex-col">
+          <div className="flex-grow overflow-y-auto space-y-2">
+            <p className="text-[8px] font-bold text-zinc-600 mb-4 tracking-tighter"><History size={10} className="inline mr-1" /> BINGX_HISTORY</p>
+            {trades.map(t => (
+              <div key={t.id} className="p-2 bg-white/5 border border-white/5 rounded text-[9px]">
+                <div className="flex justify-between font-black">
+                  <span className={t.type === 'LONG' ? 'text-green-500' : 'text-red-500'}>{t.type}</span>
+                  <span className="text-zinc-500">{t.lev}X</span>
                 </div>
-              ))}
-            </div>
+                <div className="flex justify-between text-zinc-600 mt-1">
+                  <span>ID: {t.id}</span>
+                  <span className="text-blue-500 animate-pulse">LIVE</span>
+                </div>
+              </div>
+            ))}
           </div>
-          <div className="space-y-2">
-            <div className="flex gap-2">
-              <button onClick={() => handleTrade('BUY')} disabled={isTrading} className="flex-grow py-3 bg-green-500/10 border border-green-500/30 text-green-500 rounded-xl font-black text-[10px] hover:bg-green-500 hover:text-black transition-all">EXECUTE_LONG</button>
-              <button onClick={() => handleTrade('SELL')} disabled={isTrading} className="flex-grow py-3 bg-red-600/10 border border-red-600/30 text-red-500 rounded-xl font-black text-[10px] hover:bg-red-600 hover:text-white transition-all">EXECUTE_SHORT</button>
-            </div>
+          <div className="pt-4 space-y-2">
+            <button onClick={() => handleTrade('BUY')} className="w-full py-4 bg-green-500/10 border border-green-500/30 text-green-500 font-black text-xs hover:bg-green-500 hover:text-black transition-all">EXECUTE_LONG</button>
+            <button onClick={() => handleTrade('SELL')} className="w-full py-4 bg-red-600/10 border border-red-600/30 text-red-500 font-black text-xs hover:bg-red-600 hover:text-white transition-all">EXECUTE_SHORT</button>
           </div>
         </div>
       </div>
 
       {/* FOOTER */}
-      <div className="h-10 border-t border-white/5 bg-black flex items-center justify-between px-6 text-[8px] font-bold tracking-widest text-zinc-600">
-        <div className="flex gap-8">
-          <div className="flex items-center gap-1.5 font-black text-blue-500 uppercase leading-none italic animate-pulse">"{aiReport}"</div>
-        </div>
-        <div className="flex items-center gap-4 text-zinc-500">
-          <Globe size={10} /> NETWORK: BINGX_VST_ACTIVE
+      <div className="h-8 border-t border-white/5 bg-black flex items-center justify-between px-6 text-[8px]">
+        <span className="text-blue-500 font-black italic animate-pulse tracking-widest">{aiReport}</span>
+        <div className="flex items-center gap-4 text-zinc-600">
+          <Globe size={10} className="text-green-500" /> BRIDGE_STATUS: ACTIVE_VST
         </div>
       </div>
     </div>
