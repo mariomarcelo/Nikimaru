@@ -1,210 +1,155 @@
 'use client';
 
-import React, { useEffect, useState, useRef, useMemo } from 'react';
-import {
-  Zap, Target, Brain, Radio, Settings, ShieldCheck,
-  Activity, TrendingUp, BarChart3, Clock3, Lock, Unlock, Cpu, Signal
-} from 'lucide-react';
+import React, { useEffect, useState, useRef } from 'react';
+import { Brain, Zap, Target, Activity, Shield, Cpu, Maximize2, MousePointer2 } from 'lucide-react';
 
-export default function NikimaruTerminalV40Shadow() {
+export default function NikimaruV50Tactical() {
   const canvasRef = useRef(null);
   const [candles, setCandles] = useState([]);
   const [marketData, setMarketData] = useState({ price: 0 });
-  const [intervalo, setIntervalo] = useState('1m');
   const [trade, setTrade] = useState(null);
-  const [isAuto, setIsAuto] = useState(false);
-  const [aiAnalysis, setAiAnalysis] = useState("SNC_V40: Sistema Quantum cargado. Buscando ineficiencias...");
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [aiLog, setAiLog] = useState("SNC_V50: ANALIZANDO FLUJO INSTITUCIONAL...");
 
-  // --- 1. LÓGICA DE DATOS (BINANCE) ---
+  // --- 1. CONEXIÓN REAL TIME ---
   useEffect(() => {
-    const ws = new WebSocket(`wss://stream.binance.com:9443/ws/btcusdt@kline_${intervalo}`);
-    ws.onmessage = (e) => {
-      const data = JSON.parse(e.data);
-      setMarketData({ price: parseFloat(data.k.c) });
-    };
+    const ws = new WebSocket(`wss://stream.binance.com:9443/ws/btcusdt@kline_1m`);
+    ws.onmessage = (e) => setMarketData({ price: parseFloat(JSON.parse(e.data).k.c) });
 
     const fetchHistory = async () => {
-      const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${intervalo}&limit=100`);
+      const res = await fetch(`https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=1m&limit=120`);
       const d = await res.json();
       setCandles(d.map(c => ({
-        open: parseFloat(c[1]),
-        high: parseFloat(c[2]),
-        low: parseFloat(c[3]),
-        close: parseFloat(c[4]),
-        vol: parseFloat(c[5])
+        open: parseFloat(c[1]), high: parseFloat(c[2]), low: parseFloat(c[3]), close: parseFloat(c[4])
       })));
     };
-
     fetchHistory();
     return () => ws.close();
-  }, [intervalo]);
+  }, []);
 
-  // --- 2. MOTOR DE DIBUJO (CON ESTÉTICA "SHADOW PROTOCOL") ---
+  // --- 2. MOTOR GRÁFICO TÁCTICO ---
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || candles.length === 0) return;
-
     const ctx = canvas.getContext('2d');
-    const container = canvas.parentElement;
-    canvas.width = container.clientWidth;
-    canvas.height = container.clientHeight;
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
 
     const w = canvas.width;
     const h = canvas.height;
-    const padding = 50;
+    const maxP = Math.max(...candles.map(c => c.high)) * 1.0002;
+    const minP = Math.min(...candles.map(c => c.low)) * 0.9998;
+    const range = maxP - minP;
+    const getY = (p) => h - ((p - minP) / range) * h;
+    const cW = w / candles.length;
 
-    const maxP = Math.max(...candles.map(c => c.high));
-    const minP = Math.min(...candles.map(c => c.low));
-    const range = maxP - minP || 1;
+    // Fondo y Grid
+    ctx.fillStyle = '#050505';
+    ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+    for (let i = 0; i < w; i += cW * 5) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, h); ctx.stroke(); }
+    for (let i = 0; i < h; i += 50) { ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(w, i); ctx.stroke(); }
 
-    const getY = (price) => h - padding - ((price - minP) / range) * (h - 2 * padding);
-    const candleWidth = w / candles.length;
-
-    // Fondo Negro Absoluto y Cuadrícula Sutil
-    ctx.clearRect(0, 0, w, h);
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.02)';
-    ctx.lineWidth = 0.5;
-    for (let i = 0; i < 10; i++) {
-      const y = (h / 10) * i; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
-      const x = (w / 10) * i; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
-    }
-
-    // Dibujar Velas (Colores Tácticos)
+    // Velas Japonesas
     candles.forEach((c, i) => {
-      const x = i * candleWidth + candleWidth / 2;
-      const isBull = c.close >= c.open;
+      const x = i * cW + cW / 2;
+      const isUp = c.close >= c.open;
+      const color = isUp ? '#00ffaa' : '#ff3355';
 
-      // Mecha (Rojo/Verde Táctico de las fotos)
-      ctx.strokeStyle = isBull ? '#22c55e' : '#ef4444';
+      // Mecha
+      ctx.strokeStyle = color;
       ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(x, getY(c.high));
-      ctx.lineTo(x, getY(c.low));
-      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x, getY(c.high)); ctx.lineTo(x, getY(c.low)); ctx.stroke();
 
-      // Cuerpo (Estilo Shaded de TradingView)
-      ctx.fillStyle = isBull ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)';
-      ctx.strokeStyle = isBull ? '#22c55e' : '#ef4444';
-      ctx.lineWidth = 1;
-      const bodyTop = getY(Math.max(c.open, c.close));
-      const bodyBottom = getY(Math.min(c.open, c.close));
-      ctx.fillRect(x - (candleWidth / 3), bodyTop, (candleWidth / 1.5), Math.max(bodyBottom - bodyTop, 1));
-      ctx.strokeRect(x - (candleWidth / 3), bodyTop, (candleWidth / 1.5), Math.max(bodyBottom - bodyTop, 1));
+      // Cuerpo con Glow sutil
+      ctx.shadowBlur = 5;
+      ctx.shadowColor = color;
+      ctx.fillStyle = isUp ? 'rgba(0, 255, 170, 0.3)' : 'rgba(255, 51, 85, 0.3)';
+      ctx.strokeStyle = color;
+      const bT = getY(Math.max(c.open, c.close));
+      const bB = getY(Math.min(c.open, c.close));
+      ctx.fillRect(x - cW / 3, bT, cW / 1.5, bB - bT);
+      ctx.strokeRect(x - cW / 3, bT, cW / 1.5, bB - bT);
+      ctx.shadowBlur = 0;
     });
 
-    // Líneas de Trading (Virtuales)
-    if (trade) {
-      const drawLevel = (price, color, label) => {
-        const y = getY(price);
-        ctx.setLineDash([10, 5]);
-        ctx.strokeStyle = color; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
-        ctx.fillStyle = color; ctx.font = '10px monospace italic';
-        ctx.fillText(`${label}: ${price.toFixed(2)}`, w - 120, y - 6);
-      };
-      drawLevel(trade.entry, '#fff', 'ENTRY');
-      drawLevel(trade.sl, '#ef4444', 'SHADOW_STOP');
-      drawLevel(trade.tp, '#22c55e', 'SNIPER_TP');
-      ctx.setLineDash([]);
-    }
-
-  }, [candles, marketData, trade]);
-
-  // --- 3. GESTIÓN DE TRADING ---
-  const handleManualTrade = (type) => {
-    const entry = marketData.price;
-    const offset = entry * 0.001;
-    setTrade({
-      type, entry,
-      sl: type === 'LONG' ? entry - offset : entry + offset,
-      tp: type === 'LONG' ? entry + (offset * 2) : entry - (offset * 2)
-    });
-    setAiAnalysis(`SNC_${type}: Inestabilidad en micro-flujo detectada. Orden iniciada.`);
-  };
-
-  const getSession = () => {
-    const h = new Date().getUTCHours();
-    if (h >= 13 && h <= 21) return "NEW YORK SESSION";
-    if (h >= 8 && h <= 16) return "LONDON SESSION";
-    return "OFF_HOUR_FLOW";
-  };
+    // Línea de Precio Actual
+    const curY = getY(marketData.price);
+    ctx.setLineDash([5, 5]);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+    ctx.beginPath(); ctx.moveTo(0, curY); ctx.lineTo(w, curY); ctx.stroke();
+    ctx.setLineDash([]);
+  }, [candles, marketData]);
 
   return (
-    <div className="h-screen w-screen bg-[#020202] text-zinc-500 font-mono flex flex-col overflow-hidden italic select-none">
+    <div className="relative h-screen w-screen bg-black overflow-hidden font-mono text-xs uppercase tracking-tighter">
+      {/* CANVAS DEL GRÁFICO (FONDO TOTAL) */}
+      <canvas ref={canvasRef} className="absolute inset-0 z-0" />
 
-      {/* HEADER DE LA TERMINAL */}
-      <nav className="h-12 border-b border-red-950/20 flex items-center justify-between px-8 bg-black/80 backdrop-blur-md">
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2 text-white font-black italic text-xs tracking-tighter">
-            <Signal size={16} className="text-red-600 animate-pulse" /> NIKIMARU_V40_DOMINIO
+      {/* TOP HUD: STATUS BAR */}
+      <div className="absolute top-0 left-0 w-full h-10 flex items-center justify-between px-6 z-20 bg-gradient-to-b from-black/80 to-transparent">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-red-500 font-black">
+            <Cpu size={14} /> NIKIMARU_V50_SNC
           </div>
-          <div className="flex gap-1 border-l border-white/5 pl-4">
-            {['1m', '5m', '15m'].map(t => (
-              <button key={t} onClick={() => setIntervalo(t)} className={`px-2.5 py-0.5 text-[9px] rounded-sm transition-all ${intervalo === t ? 'bg-red-600/30 border border-red-600/60 text-white font-black' : 'hover:bg-white/5'}`}>{t}</button>
-            ))}
+          <div className="text-zinc-500 border-l border-white/10 pl-4">BTC/USDT <span className="text-white">${marketData.price}</span></div>
+        </div>
+        <div className="flex gap-4 items-center">
+          <span className="flex items-center gap-1 text-[9px] text-green-500"><Activity size={12} /> SERVERS_ONLINE</span>
+          <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse shadow-[0_0_8px_#22c55e]" />
+        </div>
+      </div>
+
+      {/* WIDGET FLOTANTE 1: IA ANALYSIS (IZQUIERDA) */}
+      <div className="absolute top-20 left-10 w-64 p-5 rounded-2xl bg-black/40 backdrop-blur-xl border border-white/10 shadow-2xl z-30 transform hover:scale-105 transition-transform">
+        <div className="flex items-center gap-2 text-blue-400 mb-3 font-black text-[10px]">
+          <Brain size={16} /> NEURAL_DECISION_ENGINE
+        </div>
+        <div className="space-y-3">
+          <p className="text-[10px] text-zinc-300 italic leading-relaxed">"{aiLog}"</p>
+          <div className="h-1 w-full bg-white/5 rounded-full overflow-hidden">
+            <div className="h-full bg-blue-500 w-2/3 animate-pulse" />
+          </div>
+          <div className="flex justify-between text-[9px]">
+            <span className="text-zinc-500">BIAS:</span>
+            <span className="text-blue-400 font-bold underline">BULLISH_REJECTION</span>
           </div>
         </div>
-        <div className="flex items-center gap-6">
-          <div className="text-[11px] font-black text-white tabular-nums tracking-tighter">${marketData.price.toLocaleString()}</div>
-          <button onClick={() => setIsAuto(!isAuto)} className={`px-4 py-1.5 rounded-sm text-[9px] font-black border-2 transition-all ${isAuto ? 'bg-red-600/20 border-red-600 text-red-500 animate-pulse' : 'border-zinc-800 text-zinc-700'}`}>
-            {isAuto ? 'AUTO_SNC_ACTIVE' : 'MANUAL_MODE'}
-          </button>
+      </div>
+
+      {/* WIDGET FLOTANTE 2: EXECUTION PANEL (DERECHA) */}
+      <div className="absolute top-20 right-10 w-64 p-5 rounded-2xl bg-black/40 backdrop-blur-xl border border-white/10 shadow-2xl z-30">
+        <div className="text-[9px] font-black text-zinc-500 mb-4 tracking-[0.2em]">ORDEN_SNIPER</div>
+        <div className="grid grid-cols-2 gap-2 mb-4">
+          <button className="py-3 bg-green-500/10 border border-green-500/50 text-green-500 font-black hover:bg-green-500 hover:text-black transition-all rounded-lg">BUY</button>
+          <button className="py-3 bg-red-500/10 border border-red-500/50 text-red-500 font-black hover:bg-red-500 hover:text-black transition-all rounded-lg">SELL</button>
         </div>
-      </nav>
+        <div className="space-y-2 border-t border-white/5 pt-4">
+          <div className="flex justify-between text-[9px]"><span>RISK:</span> <span className="text-white">1.00%</span></div>
+          <div className="flex justify-between text-[9px]"><span>LEVERAGE:</span> <span className="text-white">20X</span></div>
+        </div>
+      </div>
 
-      <div className="flex-1 flex overflow-hidden">
-        {/* GRÁFICO Y PANELES IA FLOTANTES */}
-        <main className="flex-1 bg-black p-4 relative overflow-hidden">
-          <div className="w-full h-full border border-red-950/20 rounded-[2.5rem] bg-black/40 relative overflow-hidden">
-            <canvas ref={canvasRef} className="w-full h-full opacity-60 grayscale brightness-110" />
+      {/* WIDGET FLOTANTE 3: ORDER FLOW (CENTRO ABAJO) */}
+      <div className="absolute bottom-10 left-1/2 -translate-x-1/2 px-10 py-4 rounded-full bg-white/5 backdrop-blur-md border border-white/10 flex items-center gap-8 z-30 shadow-[0_0_30px_rgba(0,0,0,0.5)]">
+        <div className="flex flex-col items-center">
+          <span className="text-[8px] text-zinc-500">RSI(14)</span>
+          <span className="text-purple-400 font-bold">54.2</span>
+        </div>
+        <div className="w-[1px] h-6 bg-white/10" />
+        <div className="flex flex-col items-center">
+          <span className="text-[8px] text-zinc-500">VOL_INST</span>
+          <span className="text-green-500 font-bold">HIGH</span>
+        </div>
+        <div className="w-[1px] h-6 bg-white/10" />
+        <div className="flex flex-col items-center">
+          <span className="text-[8px] text-zinc-500">SNC_SIGNAL</span>
+          <span className="text-white font-bold animate-pulse">WAITING...</span>
+        </div>
+      </div>
 
-            {/* HUD FLOTANTE: ANÁLISIS IA TÁCTICO */}
-            <div className="absolute top-10 left-10 p-5 bg-black/90 backdrop-blur-xl border border-red-900/30 rounded-3xl max-w-sm shadow-[0_0_50px_rgba(255,0,0,0.1)]">
-              <div className="flex items-center gap-2 mb-3 text-red-500 text-[10px] font-black tracking-widest uppercase">
-                <Brain size={16} /> Neural_Flow_Analysis_v40
-              </div>
-              <p className="text-[11px] text-zinc-300 leading-relaxed italic">"{aiAnalysis}"</p>
-              {trade && (
-                <div className="mt-4 border-t border-white/10 pt-4 space-y-2">
-                  <p className="text-[9px] text-zinc-500">PNL_SIM_VIRTUAL</p>
-                  <p className={`text-4xl font-black ${marketData.price > trade.entry ? 'text-green-500' : 'text-red-500'}`}>{((marketData.price - trade.entry) / trade.entry * 100).toFixed(3)}%</p>
-                </div>
-              )}
-            </div>
-
-            {/* HUD FLOTANTE: SESIÓN TÁCTICA */}
-            <div className="absolute top-10 right-10 p-4 bg-black/90 backdrop-blur-md border border-white/5 rounded-2xl flex gap-3 items-center">
-              <div className="text-[8px] font-black uppercase text-zinc-600">Sesión_SNC</div>
-              <Clock3 size={14} className="text-zinc-600" />
-              <div className="text-[10px] text-white font-bold">{getSession()}</div>
-            </div>
-          </div>
-        </main>
-
-        {/* BARRA LATERAL (CONTROL WYCKOFF) */}
-        <aside className="w-72 bg-black border-l border-red-950/10 p-6 flex flex-col gap-6">
-          <div className="flex justify-between items-center text-xs font-bold text-white mb-2">
-            <span>BINANCE:BTCUSDT</span>
-            <Target size={16} className="text-red-600" />
-          </div>
-
-          <div className="bg-zinc-950 p-5 rounded-2xl border border-white/5 space-y-4 shadow-inner">
-            <p className="text-[9px] font-black text-zinc-700 uppercase mb-4 tracking-widest border-b border-white/10 pb-2">Controles_Shadow</p>
-            <button onClick={() => handleManualTrade('LONG')} className="w-full py-4 bg-green-600 text-black font-black text-[10px] hover:bg-green-400 transition-all">LONG_SHADOW</button>
-            <button onClick={() => handleManualTrade('SHORT')} className="w-full py-4 bg-red-600 text-black font-black text-[10px] hover:bg-red-400 transition-all">SHORT_SNIPER</button>
-          </div>
-
-          <div className="flex-1 p-5 bg-white/5 rounded-2xl border border-white/5 overflow-y-auto space-y-4">
-            <div className="text-[9px] font-black text-zinc-600 mb-4 flex items-center gap-2"><Settings size={12} /> VITAL_FLOW_DATA</div>
-            <div className="space-y-3 text-[10px]">
-              <div className="flex justify-between"><span>RSI_BIAS:</span> <span className="text-purple-500">NEUTRAL</span></div>
-              <div className="flex justify-between"><span> VOL_PROF:</span> <span className="text-white">BAJO</span></div>
-              <div className="flex justify-between"><span>SNC_CONFIDENCE:</span> <span className="text-red-500">65%</span></div>
-              <div className="flex justify-between"><span>LIQUIDITY_STATUS:</span> <span className="text-green-500">SWEPT</span></div>
-            </div>
-          </div>
-        </aside>
+      {/* MARCA DE AGUA ESTILO TRADINGVIEW */}
+      <div className="absolute bottom-10 right-10 text-[60px] font-black text-white/[0.02] pointer-events-none select-none uppercase">
+        Nikimaru SNC
       </div>
     </div>
   );
