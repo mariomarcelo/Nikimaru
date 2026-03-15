@@ -7,33 +7,53 @@ export async function POST(req) {
     const API_KEY = process.env.BINGX_API_KEY;
     const SECRET_KEY = process.env.BINGX_SECRET_KEY;
 
-    // ESTO TE DIRÁ SI VERCEL LAS ESTÁ LEYENDO
     if (!API_KEY || !SECRET_KEY) {
-      return NextResponse.json({ msg: "VERCEL_ERROR: Llaves vacías. Haz REDEPLOY sin caché." });
+      return NextResponse.json({ msg: "VERCEL_ERROR: Llaves vacías." });
     }
 
     const URL_BASE = "https://open-api-vst.bingx.com";
+    const PATH = "/openApi/swap/v2/trade/order";
+
+    // Mapeamos el side por si acaso el botón envía algo distinto
+    const bingXSide = side === 'BUY' || side === 'LONG' ? 'BUY' : 'SELL';
+
     const params = {
-      leverage: String(leverage),
-      positionSide: "BOTH",
-      quantity: String(margin),
-      recvWindow: "5000",
-      side: side,
       symbol: "BTC-USDT",
+      side: bingXSide,
+      positionSide: "BOTH",
+      type: "MARKET",
+      quantity: String(margin), // BingX usa 'quantity' para el volumen/margen
+      leverage: String(leverage),
       timestamp: String(Date.now()),
-      type: "MARKET"
+      recvWindow: "5000"
     };
 
-    const queryString = Object.keys(params).sort().map(k => `${k}=${params[k]}`).join('&');
-    const signature = crypto.createHmac('sha256', SECRET_KEY).update(queryString).digest('hex');
+    // 1. Construir query string ordenada alfabéticamente (Obligatorio para BingX)
+    const queryString = Object.keys(params)
+      .sort()
+      .map(key => `${key}=${params[key]}`)
+      .join('&');
 
-    const response = await fetch(`${URL_BASE}/openApi/swap/v2/trade/order?${queryString}&signature=${signature}`, {
+    // 2. Crear la firma HMAC SHA256
+    const signature = crypto
+      .createHmac('sha256', SECRET_KEY)
+      .update(queryString)
+      .digest('hex');
+
+    // 3. Petición final
+    const fullUrl = `${URL_BASE}${PATH}?${queryString}&signature=${signature}`;
+
+    const response = await fetch(fullUrl, {
       method: 'POST',
-      headers: { 'X-BX-APIKEY': API_KEY, 'Content-Type': 'application/json' }
+      headers: {
+        'X-BX-APIKEY': API_KEY,
+        'Accept': 'application/json'
+      }
     });
 
     const data = await response.json();
     return NextResponse.json(data);
+
   } catch (e) {
     return NextResponse.json({ msg: "Error de servidor", error: e.message });
   }
