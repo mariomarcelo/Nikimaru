@@ -1,62 +1,40 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 
-export async function POST(request) {
+export async function POST(req) {
   try {
-    const body = await request.json();
-    const { symbol, side, margin, leverage } = body;
-
+    const { side, margin, leverage } = await req.json();
     const API_KEY = process.env.BINGX_API_KEY;
     const SECRET_KEY = process.env.BINGX_SECRET_KEY;
 
-    // URL para cuenta DEMO VST
-    const URL_BASE = "https://open-api-vst.bingx.com";
+    // ESTO TE DIRÁ SI VERCEL LAS ESTÁ LEYENDO
+    if (!API_KEY || !SECRET_KEY) {
+      return NextResponse.json({ msg: "VERCEL_ERROR: Llaves vacías. Haz REDEPLOY sin caché." });
+    }
 
-    // 1. Definir parámetros (Aseguramos que sean números donde corresponde)
+    const URL_BASE = "https://open-api-vst.bingx.com";
     const params = {
-      symbol: symbol || "BTC-USDT",
-      side: side.toUpperCase(), // Asegurar que sea BUY o SELL
+      leverage: String(leverage),
       positionSide: "BOTH",
-      type: "MARKET",
-      quantity: Number(margin),
-      leverage: Number(leverage),
-      timestamp: Date.now(),
-      recvWindow: 5000, // Margen de 5 segundos para evitar el error de tiempo
+      quantity: String(margin),
+      recvWindow: "5000",
+      side: side,
+      symbol: "BTC-USDT",
+      timestamp: String(Date.now()),
+      type: "MARKET"
     };
 
-    // 2. Crear el Query String ordenado alfabéticamente
-    const queryString = Object.keys(params)
-      .sort()
-      .map(key => `${key}=${params[key]}`)
-      .join('&');
+    const queryString = Object.keys(params).sort().map(k => `${k}=${params[k]}`).join('&');
+    const signature = crypto.createHmac('sha256', SECRET_KEY).update(queryString).digest('hex');
 
-    // 3. Generar la firma HMAC SHA256
-    const signature = crypto
-      .createHmac('sha256', SECRET_KEY)
-      .update(queryString)
-      .digest('hex');
-
-    // 4. Construir la URL completa
-    const fullUrl = `${URL_BASE}/openApi/swap/v2/trade/order?${queryString}&signature=${signature}`;
-
-    // 5. Realizar la petición
-    const response = await fetch(fullUrl, {
+    const response = await fetch(`${URL_BASE}/openApi/swap/v2/trade/order?${queryString}&signature=${signature}`, {
       method: 'POST',
-      headers: {
-        'X-BX-APIKEY': API_KEY,
-        'Content-Type': 'application/json'
-      }
+      headers: { 'X-BX-APIKEY': API_KEY, 'Content-Type': 'application/json' }
     });
 
     const data = await response.json();
-
-    // Log para depuración en Vercel
-    console.log("Respuesta de BingX:", data);
-
     return NextResponse.json(data);
-
-  } catch (error) {
-    console.error("Error en API Route:", error);
-    return NextResponse.json({ error: 'Error interno del servidor', details: error.message }, { status: 500 });
+  } catch (e) {
+    return NextResponse.json({ msg: "Error de servidor", error: e.message });
   }
 }
