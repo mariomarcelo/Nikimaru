@@ -1,228 +1,270 @@
 'use client';
 
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { Brain, Cpu, Bot, History, Globe, ShieldCheck, XCircle, Settings2 } from 'lucide-react';
+import { Brain, Zap, ShieldAlert, TrendingUp, TrendingDown, Activity } from 'lucide-react';
+import { createChart, IChartApi, ISeriesApi, CandlestickData } from 'lightweight-charts';
 
-export default function NikimaruV140BingX() {
-  const canvasRef = useRef(null);
-  const containerRef = useRef(null);
-  const [candles, setCandles] = useState([]);
-  const [price, setPrice] = useState(0);
-  const [tf, setTf] = useState('1m');
-  const [aiReport, setAiReport] = useState("SNC_SYSTEM: Online. Esperando señal de mercado...");
-  const [isTrading, setIsTrading] = useState(false);
+interface Candle { time: number; open: number; high: number; low: number; close: number; }
+interface Trade {
+  id: string; type: 'LONG' | 'SHORT'; entryPrice: number;
+  margin: number; leverage: number; pnl: number; pnlUsdt: number;
+  candlesOpen: number;
+}
+
+export default function NikimaruV37AISniper() {
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<IChartApi | null>(null);
+  const candlestickSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
+  const lastProcessedTime = useRef<number>(0);
+
+  const [candles, setCandles] = useState<Candle[]>([]);
+  const [price, setPrice] = useState<number>(0);
+  const [activeTrades, setActiveTrades] = useState<Trade[]>([]);
   const [isAuto, setIsAuto] = useState(false);
-  const [trades, setTrades] = useState([]);
+  const [aiStatus, setAiStatus] = useState("SISTEMA_READY");
+  const [balance, setBalance] = useState(200); // CAPITAL TOTAL 200 USDT
 
-  // CONFIGURACIÓN DE TRADING (VINCULADO A LA UI)
-  const [leverage, setLeverage] = useState(20);
-  const [tradeAmount, setTradeAmount] = useState(10); // Margen en VST
+  const CONFIG = {
+    MARGIN: 20,         // 10% del capital total
+    LEVERAGE: 50,
+    SL: -2.00,
+    HOLD_CANDLES: 2,
+    GROQ_KEY: "TU_KEY_AQUI" // Reemplaza con tu key real
+  };
 
-  // --- MOTOR DE DATOS REALES (BINANCE) ---
+  // --- INICIALIZACIÓN DEL GRÁFICO ---
   useEffect(() => {
-    fetch(`https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=${tf}&limit=80`)
-      .then(res => res.json())
-      .then(data => {
-        setCandles(data.map(c => ({
-          time: c[0], open: parseFloat(c[1]), high: parseFloat(c[2]), low: parseFloat(c[3]), close: parseFloat(c[4])
-        })));
-      });
+    if (!chartContainerRef.current) return;
 
-    const ws = new WebSocket(`wss://stream.binance.com:9443/ws/btcusdt@kline_${tf}`);
-    ws.onmessage = (e) => {
-      const { k } = JSON.parse(e.data);
-      setPrice(parseFloat(k.c));
-      if (k.x) {
-        setCandles(prev => [...prev.slice(1), {
-          time: k.t, open: parseFloat(k.o), high: parseFloat(k.h), low: parseFloat(k.l), close: parseFloat(k.c)
-        }]);
-      }
+    const chart = createChart(chartContainerRef.current, {
+      layout: { background: { color: '#020202' }, textColor: '#71717a' },
+      grid: { vertLines: { color: '#1e1e1e' }, horzLines: { color: '#1e1e1e' } },
+      crosshair: { mode: 0 },
+      timeScale: { borderColor: '#333', timeVisible: true, secondsVisible: false },
+    });
+
+    const candlestickSeries = chart.addCandlestickSeries({
+      upColor: '#00ffa3', downColor: '#ff3e3e', borderVisible: false,
+      wickUpColor: '#00ffa3', wickDownColor: '#ff3e3e',
+    });
+
+    chartRef.current = chart;
+    candlestickSeriesRef.current = candlestickSeries;
+
+    const handleResize = () => chart.applyOptions({ width: chartContainerRef.current?.clientWidth });
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      chart.remove();
     };
-    return () => ws.close();
-  }, [tf]);
+  }, []);
 
-  // --- EJECUCIÓN REAL EN BINGX VST VIA SERVERLESS ---
-  const handleBingXTrade = async (side) => {
-    if (isTrading) return;
-    setIsTrading(true);
-    setAiReport(`SNC_EXEC: Enviando ${side === 'BUY' ? 'LONG' : 'SHORT'} a BingX...`);
+  // --- CONSULTA A LA IA ---
+  const askIAAndExecute = async (history: Candle[]) => {
+    if (balance < CONFIG.MARGIN) {
+      setAiStatus("BALANCE_INSUFICIENTE");
+      return;
+    }
 
+    setAiStatus("IA_ANALIZANDO_MERCADO...");
     try {
-      const response = await fetch('/api/bingx', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${CONFIG.GROQ_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          symbol: "BTC-USDT",
-          side: side, // "BUY" o "SELL"
-          margin: tradeAmount,
-          leverage: leverage
+          model: "llama3-8b-8192",
+          messages: [
+            { role: "system", content: "Eres un trader profesional. Responde SOLO JSON: {\"action\": \"LONG\"} o {\"action\": \"SHORT\"} o {\"action\": \"WAIT\"}." },
+            { role: "user", content: `Analiza estas velas de 5m de BTC: ${JSON.stringify(history.slice(-10))}` }
+          ],
+          response_format: { type: "json_object" }
         })
       });
 
-      const data = await response.json();
+      const data = await res.json();
+      const decision = JSON.parse(data.choices[0].message.content).action;
 
-      if (data.code === 0) {
-        const newTrade = {
-          id: data.data.orderId,
-          type: side === 'BUY' ? 'LONG' : 'SHORT',
-          price: price,
-          time: new Date().toLocaleTimeString()
-        };
-        setTrades(prev => [newTrade, ...prev].slice(0, 10));
-        setAiReport(`ORDEN EXITOSA: ID ${data.data.orderId}`);
-      } else {
-        // Captura el error real de BingX (ej: 401, Invalid Signature)
-        setAiReport(`BINGX_ERROR: ${data.msg || 'Revisar API Keys'}`);
-        console.error("Error de BingX:", data);
-      }
-    } catch (error) {
-      setAiReport("SNC_CRITICAL: Error de conexión con Vercel");
-    } finally {
-      // Cooldown de 2 segundos para evitar spam de órdenes
-      setTimeout(() => setIsTrading(false), 2000);
+      if (decision === 'LONG' || decision === 'SHORT') executeOrder(decision);
+      else setAiStatus("IA_DECIDIÓ_ESPERAR");
+    } catch (e) {
+      setAiStatus("ERROR_IA_REINTENTANDO");
     }
   };
 
-  // --- IA AUTÓNOMA (SNC NEURAL ENGINE) ---
+  const executeOrder = useCallback((side: 'LONG' | 'SHORT') => {
+    const newTrade: Trade = {
+      id: `AI-${Date.now()}`,
+      type: side,
+      entryPrice: price,
+      margin: CONFIG.MARGIN,
+      leverage: CONFIG.LEVERAGE,
+      pnl: 0, pnlUsdt: 0,
+      candlesOpen: 0
+    };
+
+    setBalance(prev => prev - CONFIG.MARGIN);
+    setActiveTrades(prev => [...prev, newTrade]);
+    setAiStatus(`ORDEN_${side}_EJECUTADA`);
+  }, [price, balance]);
+
+  // --- MONITOR DE SALIDAS Y PNL ---
   useEffect(() => {
-    if (!isAuto || candles.length < 20) return;
+    if (activeTrades.length === 0) return;
+    setActiveTrades(prev => {
+      const toClose = prev.filter(t => t.pnlUsdt <= CONFIG.SL || t.candlesOpen >= CONFIG.HOLD_CANDLES);
+      const toKeep = prev.filter(t => t.pnlUsdt > CONFIG.SL && t.candlesOpen < CONFIG.HOLD_CANDLES);
 
-    const brainInterval = setInterval(() => {
-      if (isTrading) return;
-
-      // Cálculo de RSI (14 periodos)
-      const last15 = candles.slice(-15);
-      let gains = 0, losses = 0;
-      for (let i = 1; i < last15.length; i++) {
-        const diff = last15[i].close - last15[i - 1].close;
-        if (diff >= 0) gains += diff; else losses += Math.abs(diff);
+      if (toClose.length > 0) {
+        let pnlTotal = 0;
+        let marginTotal = 0;
+        toClose.forEach(t => { pnlTotal += t.pnlUsdt; marginTotal += t.margin; });
+        setBalance(b => b + marginTotal + pnlTotal);
+        setAiStatus(toClose[0].pnlUsdt <= CONFIG.SL ? "STOP_LOSS_ACTIVADO" : "TIEMPO_AGOTADO");
       }
-      const rs = gains / (losses || 1);
-      const rsi = 100 - (100 / (1 + rs));
-
-      setAiReport(`IA_SCAN: RSI ${rsi.toFixed(2)} | ANALIZANDO BLOQUES...`);
-
-      // GATILLOS DE IA (SNC LOGIC)
-      if (rsi < 30) {
-        setAiReport("SNC_BRAIN: SOBREVENTA DETECTADA. ¡LONG!");
-        handleBingXTrade('BUY');
-      } else if (rsi > 70) {
-        setAiReport("SNC_BRAIN: SOBRECOMPRA DETECTADA. ¡SHORT!");
-        handleBingXTrade('SELL');
-      }
-    }, 5000); // Escaneo cada 5 segundos
-
-    return () => clearInterval(brainInterval);
-  }, [isAuto, isTrading, candles, tradeAmount, leverage]);
-
-  // --- MOTOR GRÁFICO (CANVAS) ---
-  const draw = useCallback(() => {
-    const canvas = canvasRef.current;
-    const container = containerRef.current;
-    if (!canvas || !container || candles.length === 0) return;
-    const ctx = canvas.getContext('2d');
-
-    canvas.width = container.clientWidth;
-    canvas.height = container.clientHeight;
-    const w = canvas.width; const h = canvas.height;
-    const pX = 50; const pY = 40;
-    const cW = w - pX; const cH = h - (pY * 2);
-
-    const maxP = Math.max(...candles.map(c => c.high));
-    const minP = Math.min(...candles.map(c => c.low));
-    const range = maxP - minP;
-    const getY = (p) => pY + cH - ((p - minP) / (range || 1)) * cH;
-    const stepX = cW / candles.length;
-
-    ctx.clearRect(0, 0, w, h);
-
-    // Velas Japonesas
-    candles.forEach((c, i) => {
-      const x = (i * stepX) + stepX / 2;
-      const isUp = c.close >= c.open;
-      const color = isUp ? '#00ffa3' : '#ff3355';
-      ctx.strokeStyle = color;
-      ctx.beginPath(); ctx.moveTo(x, getY(c.high)); ctx.lineTo(x, getY(c.low)); ctx.stroke();
-      ctx.fillStyle = isUp ? 'rgba(0, 255, 163, 0.3)' : 'rgba(255, 51, 85, 0.3)';
-      ctx.fillRect(x - stepX / 3, getY(Math.max(c.open, c.close)), (stepX / 3) * 2, Math.max(Math.abs(getY(c.open) - getY(c.close)), 1));
+      return toKeep;
     });
-  }, [candles]);
+  }, [price]);
 
+  // --- WEBSOCKET DATA ---
   useEffect(() => {
-    const anim = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(anim);
-  }, [draw]);
+    fetch(`https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=5m&limit=100`)
+      .then(res => res.json()).then(d => {
+        const fmt = d.map((c: any) => ({
+          time: c[0] / 1000, open: parseFloat(c[1]), high: parseFloat(c[2]), low: parseFloat(c[3]), close: parseFloat(c[4])
+        }));
+        setCandles(fmt);
+        if (candlestickSeriesRef.current) candlestickSeriesRef.current.setData(fmt);
+      });
+
+    const ws = new WebSocket(`wss://stream.binance.com:9443/ws/btcusdt@kline_5m`);
+    ws.onmessage = (e) => {
+      const { k } = JSON.parse(e.data);
+      const currentPrice = parseFloat(k.c);
+      setPrice(currentPrice);
+
+      const updatedCandle = {
+        time: k.t / 1000, open: parseFloat(k.o), high: parseFloat(k.h), low: parseFloat(k.l), close: currentPrice
+      };
+
+      if (candlestickSeriesRef.current) {
+        candlestickSeriesRef.current.update(updatedCandle);
+      }
+
+      if (k.x && k.t !== lastProcessedTime.current) {
+        lastProcessedTime.current = k.t;
+        setActiveTrades(prev => prev.map(t => ({ ...t, candlesOpen: t.candlesOpen + 1 })));
+        setCandles(prev => {
+          const updated = [...prev, updatedCandle];
+          if (isAuto) askIAAndExecute(updated);
+          return updated.slice(-100);
+        });
+      }
+    };
+    return () => ws.close();
+  }, [isAuto]);
+
+  // Actualización PNL visual
+  useEffect(() => {
+    if (price <= 0 || activeTrades.length === 0) return;
+    setActiveTrades(prev => prev.map(t => {
+      const diff = t.type === 'LONG' ? price - t.entryPrice : t.entryPrice - price;
+      const p = (diff / t.entryPrice) * 100 * t.leverage;
+      return { ...t, pnl: p, pnlUsdt: (t.margin * p) / 100 };
+    }));
+  }, [price]);
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-[#020202] text-zinc-400 font-mono uppercase italic overflow-hidden">
-
+    <div className="h-screen w-screen bg-[#020202] text-white font-mono uppercase flex flex-col overflow-hidden">
       {/* HEADER */}
-      <div className="h-14 border-b border-white/5 flex items-center justify-between px-6 bg-black z-50">
-        <div className="flex items-center gap-4">
-          <div className="bg-red-600 p-1 rounded text-white animate-pulse"><Cpu size={16} /></div>
-          <span className="text-white font-black tracking-tighter text-xs">NIKIMARU_V140_BINGX</span>
+      <div className="h-20 border-b border-white/5 flex items-center justify-between px-8 bg-black/50 backdrop-blur-xl">
+        <div className="flex items-center gap-8">
+          <div className="flex flex-col">
+            <span className="text-[8px] text-zinc-500 tracking-[0.3em]">TOTAL_CAPITAL</span>
+            <span className="text-2xl font-black text-[#00ffa3]">${balance.toFixed(2)}</span>
+          </div>
+          <div className="h-8 w-[1px] bg-white/10" />
           <button
             onClick={() => setIsAuto(!isAuto)}
-            className={`flex items-center gap-2 px-3 py-1 rounded border text-[9px] font-black transition-all ${isAuto ? 'bg-red-600 border-red-500 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)]' : 'bg-white/5 border-white/10 text-zinc-500'}`}
+            className={`px-6 py-2 rounded-lg text-[10px] font-black transition-all border ${isAuto ? 'bg-red-500/10 border-red-500 text-red-500 animate-pulse' : 'bg-blue-600 border-blue-400 text-white'}`}
           >
-            <Bot size={12} /> {isAuto ? 'IA_SNC_ACTIVE' : 'IA_SNC_STANDBY'}
+            {isAuto ? 'STOP_AI_SNIPER' : 'START_AI_AUTOPILOT'}
           </button>
         </div>
-        <div className="text-right">
-          <p className="text-[7px] text-zinc-600 font-bold">LIVE_BTC_USDT</p>
-          <p className="text-sm font-black text-white tabular-nums">${price.toLocaleString()}</p>
+
+        <div className="flex flex-col items-end">
+          <span className="text-3xl font-black tracking-tighter">${price.toLocaleString()}</span>
+          <span className="text-[9px] text-zinc-500 flex items-center gap-2">
+            <Activity size={10} className="text-[#00ffa3]" /> LIVE_BTC_FEED
+          </span>
         </div>
       </div>
 
-      <div className="flex flex-grow overflow-hidden">
-        {/* PANEL IZQUIERDO */}
-        <div className="w-64 border-r border-white/5 p-4 flex flex-col gap-4 bg-[#050505]">
-          <div className="p-4 bg-black/60 rounded-xl border border-white/10">
-            <div className="flex items-center gap-2 text-red-500 text-[9px] font-black mb-4"><Settings2 size={12} /> PARAMS</div>
-            <label className="text-[8px] text-zinc-500 block">APALANCAMIENTO: {leverage}X</label>
-            <input type="range" min="1" max="100" value={leverage} onChange={(e) => setLeverage(parseInt(e.target.value))} className="w-full h-1 bg-white/10 rounded-lg accent-red-600 mb-4" />
-            <label className="text-[8px] text-zinc-500 block uppercase">Margen (VST)</label>
-            <input type="number" value={tradeAmount} onChange={(e) => setTradeAmount(parseInt(e.target.value))} className="w-full bg-black border border-white/10 rounded p-2 text-[10px] text-white outline-none focus:border-red-600" />
+      <div className="flex-grow flex">
+        {/* SIDEBAR LOGS */}
+        <div className="w-72 border-r border-white/5 p-4 bg-black/20 flex flex-col gap-4">
+          <div className="p-3 bg-zinc-900/50 border border-white/5 rounded-lg">
+            <p className="text-[8px] text-zinc-500 mb-1 flex items-center gap-2"><Brain size={12} /> AI_STATUS</p>
+            <p className="text-[10px] font-bold text-blue-400 truncate">{aiStatus}</p>
           </div>
-          <div className="p-4 bg-black/40 rounded-xl border border-white/5 flex-grow">
-            <p className="text-zinc-600 mb-2 font-bold text-[8px] tracking-widest uppercase">System_Intel:</p>
-            <p className="text-blue-400 text-[10px] leading-tight normal-case">"{aiReport}"</p>
-          </div>
-        </div>
 
-        {/* CENTRO: CHART */}
-        <div ref={containerRef} className="flex-grow relative bg-[#020202]">
-          <canvas ref={canvasRef} className="absolute inset-0 w-full h-full opacity-60" />
-        </div>
-
-        {/* PANEL DERECHO */}
-        <div className="w-72 border-l border-white/5 p-4 flex flex-col gap-4 bg-[#050505]">
-          <div className="flex-grow flex flex-col overflow-hidden">
-            <div className="flex items-center gap-2 text-[8px] font-black text-zinc-500 mb-4 tracking-widest"><History size={12} /> BINGX_POSITIONS</div>
-            <div className="flex-grow overflow-y-auto space-y-2">
-              {trades.map(trade => (
-                <div key={trade.id} className="p-2 bg-white/5 border border-white/5 rounded text-[9px]">
-                  <div className="flex justify-between font-black">
-                    <span className={trade.type === 'LONG' ? 'text-green-500' : 'text-red-500'}>{trade.type}</span>
-                    <span className="text-zinc-600">ID:{trade.id}</span>
-                  </div>
-                  <div className="text-zinc-500">ENTRADA: ${trade.price}</div>
+          <div className="flex-grow overflow-y-auto">
+            <p className="text-[8px] text-zinc-600 mb-3 tracking-widest">ACTIVE_POSITIONS</p>
+            {activeTrades.map(t => (
+              <div key={t.id} className="p-4 bg-zinc-900/80 rounded-xl border border-white/5 mb-2 relative overflow-hidden">
+                <div className={`absolute top-0 left-0 w-1 h-full ${t.type === 'LONG' ? 'bg-green-500' : 'bg-red-500'}`} />
+                <div className="flex justify-between items-center">
+                  <span className="text-[10px] font-black">{t.type} @ {t.leverage}X</span>
+                  <span className={`text-lg font-black ${t.pnlUsdt >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    {t.pnlUsdt >= 0 ? '+' : ''}{t.pnlUsdt.toFixed(2)}
+                  </span>
                 </div>
-              ))}
+                <div className="flex justify-between mt-2 text-[8px] text-zinc-500 font-bold">
+                  <span>ENTRY: {t.entryPrice.toFixed(0)}</span>
+                  <span>VELAS: {t.candlesOpen}/2</span>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="p-3 bg-red-500/5 border border-red-500/20 rounded-lg">
+            <div className="flex justify-between text-[8px] mb-1">
+              <span className="text-zinc-500">STOP_LOSS</span>
+              <span className="text-red-500">-$2.00 (FIXED)</span>
+            </div>
+            <div className="flex justify-between text-[8px]">
+              <span className="text-zinc-500">POSITION_SIZE</span>
+              <span className="text-white">20.00 USDT</span>
             </div>
           </div>
-          <div className="flex gap-2">
-            <button onClick={() => handleBingXTrade('BUY')} disabled={isTrading || isAuto} className="flex-grow py-4 bg-green-500/10 border border-green-500/30 text-green-500 rounded-xl font-black text-[10px] hover:bg-green-500 hover:text-black transition-all">LONG</button>
-            <button onClick={() => handleBingXTrade('SELL')} disabled={isTrading || isAuto} className="flex-grow py-4 bg-red-600/10 border border-red-600/30 text-red-500 rounded-xl font-black text-[10px] hover:bg-red-600 hover:text-white transition-all">SHORT</button>
-          </div>
         </div>
-      </div>
 
-      {/* FOOTER */}
-      <div className="h-8 border-t border-white/5 bg-black flex items-center justify-between px-6 text-[8px] font-bold text-zinc-600 uppercase">
-        <div className="flex gap-4">
-          <span className="flex items-center gap-1"><Globe size={10} className="text-green-500" /> BingX_VST_Active</span>
-          <span className="flex items-center gap-1"><ShieldCheck size={10} /> Neural_Core_v1.4</span>
+        {/* MAIN CHART AREA */}
+        <div className="flex-grow relative">
+          <div ref={chartContainerRef} className="absolute inset-0" />
+
+          {/* OVERLAY PNL TOTAL */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none opacity-20">
+            <h2 className="text-[15vw] font-black italic">
+              {activeTrades.reduce((a, c) => a + c.pnlUsdt, 0).toFixed(1)}
+            </h2>
+          </div>
+
+          {/* MANUAL CONTROLS */}
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex gap-4 w-[80%] max-w-2xl">
+            <button onClick={() => executeOrder('LONG')} className="flex-1 py-4 bg-green-500 text-black font-black rounded-xl text-xs hover:scale-105 transition-all flex items-center justify-center gap-2">
+              <TrendingUp size={16} /> FORCE_LONG
+            </button>
+            <button onClick={() => {
+              activeTrades.forEach(t => setBalance(b => b + t.margin + t.pnlUsdt));
+              setActiveTrades([]);
+            }} className="px-8 bg-zinc-800 border border-white/10 rounded-xl text-[10px] font-black hover:bg-white hover:text-black transition-all">
+              PANIC_EXIT
+            </button>
+            <button onClick={() => executeOrder('SHORT')} className="flex-1 py-4 bg-red-500 text-black font-black rounded-xl text-xs hover:scale-105 transition-all flex items-center justify-center gap-2">
+              <TrendingDown size={16} /> FORCE_SHORT
+            </button>
+          </div>
         </div>
       </div>
     </div>
